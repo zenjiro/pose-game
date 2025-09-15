@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "MediaPipe Pose x OpenCV 2D falling objects game (offline 2P)."
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+    "opencv-python>=4.12.0.88",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -11,9 +14,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 # You can run the app with: uv run python -m game.main
-
-[tool.uv.scripts]
-run = "python -m game.main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
