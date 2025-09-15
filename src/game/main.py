@@ -37,6 +37,8 @@ def main() -> None:
 
     prev = time.time()
     fps = 0.0
+    # Persistent per-player scores for the current session
+    scores = [0, 0]
 
     try:
         while True:
@@ -70,7 +72,6 @@ def main() -> None:
 
             # Collect foot circles per player and check foot-rock collisions (step 6)
             # Use per-player scoring: foot hit => +1
-            scores = [0, 0]
             for i, circles in enumerate(people[:2]):
                 feet = [(c.x, c.y, c.r) for c in circles.get("feet", [])]
                 if feet:
