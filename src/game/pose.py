@@ -37,15 +37,34 @@ class PoseEstimator:
         self._multi = None
         # Prefer Tasks API when available and max_people > 1
         if TASKS_AVAILABLE and self.max_people > 1:
-            base_options = mp_python.BaseOptions(model_asset_path=None)  # use built-in model
-            options = mp_vision.PoseLandmarkerOptions(
-                base_options=base_options,
-                running_mode=mp_vision.RunningMode.VIDEO,
-                num_poses=self.max_people,
-                min_pose_detection_confidence=min_detection_confidence,
-                min_pose_tracking_confidence=min_tracking_confidence,
-            )
-            self._multi = mp_vision.PoseLandmarker.create_from_options(options)
+            # Build BaseOptions (use built-in model by leaving model_asset_path=None)
+            base_options = mp_python.BaseOptions(model_asset_path=None)
+            # Try to construct PoseLandmarkerOptions with tracking option first.
+            try:
+                options = mp_vision.PoseLandmarkerOptions(
+                    base_options=base_options,
+                    running_mode=mp_vision.RunningMode.VIDEO,
+                    num_poses=self.max_people,
+                    min_pose_detection_confidence=min_detection_confidence,
+                    min_pose_tracking_confidence=min_tracking_confidence,
+                )
+                self._multi = mp_vision.PoseLandmarker.create_from_options(options)
+            except TypeError:
+                # Some versions of the Tasks API don't accept min_pose_tracking_confidence.
+                # Retry without the tracking option. If that still fails, fall back to
+                # the single-person Solutions API below.
+                try:
+                    options = mp_vision.PoseLandmarkerOptions(
+                        base_options=base_options,
+                        running_mode=mp_vision.RunningMode.VIDEO,
+                        num_poses=self.max_people,
+                        min_pose_detection_confidence=min_detection_confidence,
+                    )
+                    self._multi = mp_vision.PoseLandmarker.create_from_options(options)
+                except Exception:
+                    # If any error occurs, fall back to the single-person API
+                    # implementation below by leaving self._multi as None.
+                    self._multi = None
         else:
             self._mp_pose = mp.solutions.pose
             self._single = self._mp_pose.Pose(
