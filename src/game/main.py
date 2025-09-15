@@ -68,12 +68,27 @@ def main() -> None:
             if hand_hits > 0:
                 cv2.putText(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3, cv2.LINE_AA)
 
+            # Collect foot circles per player and check foot-rock collisions (step 6)
+            # Use per-player scoring: foot hit => +1
+            scores = [0, 0]
+            for i, circles in enumerate(people[:2]):
+                feet = [(c.x, c.y, c.r) for c in circles.get("feet", [])]
+                if feet:
+                    events = rock_mgr.handle_collisions(kind="feet", circles=feet)
+                    hits = events.get("hits", 0)
+                    if hits:
+                        scores[i] += hits
+
             # Update and draw rocks
             now = time.time()
             dt = now - prev
             prev = now
             rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
             draw_rocks(frame, rock_mgr.rocks)
+
+            # Draw scores for players (top-left)
+            cv2.putText(frame, f"P1 Score: {scores[0]}", (12, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 220, 220), 2, cv2.LINE_AA)
+            cv2.putText(frame, f"P2 Score: {scores[1]}", (12, 82), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 220, 220), 2, cv2.LINE_AA)
 
             # FPS calc (use smoothed FPS)
             if dt > 0:
