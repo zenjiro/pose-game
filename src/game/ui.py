@@ -12,8 +12,6 @@ ENTER = 13
 SPACE = 32
 UP_KEYS = {2490368, 82}   # Windows arrow up, keypad code; 82 sometimes from older backends
 DOWN_KEYS = {2621440, 84} # Windows arrow down; 84 sometimes from older backends
-ALT_UP = {ord('k'), ord('K'), ord('w'), ord('W')}
-ALT_DOWN = {ord('j'), ord('J'), ord('s'), ord('S')}
 
 
 def _render_menu(
@@ -34,7 +32,7 @@ def _render_menu(
     y += 30
 
     # Instructions
-    inst = "Arrow Up/Down (or W/S, J/K) to select  •  Enter/Space to confirm  •  R to rescan  •  Esc to exit"
+    inst = "Arrow Up/Down to select  •  Enter/Space to confirm  •  R to rescan  •  Esc to exit"
     cv2.putText(canvas, inst, (60, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 180, 180), 1, cv2.LINE_AA)
     y += 20
 
