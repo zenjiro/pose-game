@@ -4,7 +4,8 @@ import cv2
 from .camera import open_camera
 from .ui import select_camera_gui
 from .pose import PoseEstimator
-from .render import draw_circles, put_fps
+from .render import draw_circles, put_fps, draw_rocks
+from .gameplay import RockManager
 
 
 def main() -> None:
@@ -24,12 +25,14 @@ def main() -> None:
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     pose = PoseEstimator()
+    rock_mgr = RockManager(width=1280, height=720)
 
     prev = time.time()
     fps = 0.0
 
     try:
         while True:
+            rock_mgr.maybe_spawn()
             ok, frame = cap.read()
             if not ok or frame is None:
                 continue
@@ -37,12 +40,16 @@ def main() -> None:
             circles = pose.process(frame)
             draw_circles(frame, circles)
 
-            # FPS calc
+            # Update and draw rocks
             now = time.time()
             dt = now - prev
+            prev = now
+            rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
+            draw_rocks(frame, rock_mgr.rocks)
+
+            # FPS calc (use smoothed FPS)
             if dt > 0:
                 fps = 0.9 * fps + 0.1 * (1.0 / dt)
-            prev = now
             put_fps(frame, fps)
 
             cv2.imshow(window_name, frame)
