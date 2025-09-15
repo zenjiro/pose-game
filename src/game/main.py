@@ -1,4 +1,5 @@
 from .camera import show_fullscreen_camera, list_available_cameras
+from .devices import get_camera_names
 
 
 def main() -> None:
@@ -9,9 +10,15 @@ def main() -> None:
         return
 
     print("Available cameras:")
+    # Best-effort names by platform (may not align exactly with indices)
+    names = get_camera_names()
     for i, info in enumerate(candidates):
         res = info.get("resolution") or ("?", "?")
-        print(f"  [{i}] device_index={info['index']} backend={info['backend']} resolution={res[0]}x{res[1]}")
+        # Try to pick a name if the length matches; otherwise leave blank
+        label = f" - {names[i]}" if i < len(names) else ""
+        print(
+            f"  [{i}] device_index={info['index']} backend={info['backend']} resolution={res[0]}x{res[1]}{label}"
+        )
 
     # Ask user to select
     try:
