@@ -7,6 +7,14 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
+# Tasks API imports for multi-person
+try:
+    from mediapipe.tasks import python as mp_python
+    from mediapipe.tasks.python import vision as mp_vision
+    TASKS_AVAILABLE = True
+except Exception:
+    TASKS_AVAILABLE = False
+
 
 @dataclass
 class Circle:
@@ -22,38 +30,78 @@ class PoseEstimator:
         min_tracking_confidence: float = 0.5,
         model_complexity: int = 1,
         smooth_landmarks: bool = True,
+        max_people: int = 2,
     ) -> None:
-        self._mp_pose = mp.solutions.pose
-        self._pose = self._mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=model_complexity,
-            smooth_landmarks=smooth_landmarks,
-            enable_segmentation=False,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence,
-        )
+        self.max_people = max(1, int(max_people))
+        self._single = None
+        self._multi = None
+        # Prefer Tasks API when available and max_people > 1
+        if TASKS_AVAILABLE and self.max_people > 1:
+            base_options = mp_python.BaseOptions(model_asset_path=None)  # use built-in model
+            options = mp_vision.PoseLandmarkerOptions(
+                base_options=base_options,
+                running_mode=mp_vision.RunningMode.VIDEO,
+                num_poses=self.max_people,
+                min_pose_detection_confidence=min_detection_confidence,
+                min_pose_tracking_confidence=min_tracking_confidence,
+            )
+            self._multi = mp_vision.PoseLandmarker.create_from_options(options)
+        else:
+            self._mp_pose = mp.solutions.pose
+            self._single = self._mp_pose.Pose(
+                static_image_mode=False,
+                model_complexity=model_complexity,
+                smooth_landmarks=smooth_landmarks,
+                enable_segmentation=False,
+                min_detection_confidence=min_detection_confidence,
+                min_tracking_confidence=min_tracking_confidence,
+            )
 
     def close(self) -> None:
         try:
-            self._pose.close()
+            if self._single is not None:
+                self._single.close()
+        except Exception:
+            pass
+        try:
+            if self._multi is not None:
+                self._multi.close()
         except Exception:
             pass
 
     def __del__(self) -> None:
         self.close()
 
-    def process(self, frame_bgr: np.ndarray) -> Dict[str, List[Circle]]:
+    def process(self, frame_bgr: np.ndarray) -> List[Dict[str, List[Circle]]]:
         """
-        Process a BGR frame and return circles for head, hands, and feet for a single person.
+        Process a BGR frame and return, for each detected person, circles for head/hands/feet.
+        Returns a list of dicts: [{"head": [...], "hands": [...], "feet": [...]}]
         """
         h, w = frame_bgr.shape[:2]
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        results = self._pose.process(rgb)
 
-        if not results.pose_landmarks:
-            return {"head": [], "hands": [], "feet": []}
+        people: List[Dict[str, List[Circle]]] = []
 
-        lm = results.pose_landmarks.landmark
+        if self._multi is not None:
+            mp_image = mp_vision.Image(image_format=mp_vision.ImageFormat.SRGB, data=rgb)
+            # Use a dummy timestamp; we don't rely on temporal filtering here
+            res = self._multi.detect_for_video(mp_image, 0)
+            if not res.pose_landmarks:
+                return []
+            # res.pose_landmarks is list[list[NormalizedLandmark]] per person
+            for lms in res.pose_landmarks:
+                people.append(self._extract_person(lms, w, h))
+            return people
+
+        # Fallback to single-person solutions API
+        results = self._single.process(rgb) if self._single is not None else None
+        if not results or not results.pose_landmarks:
+            return []
+        people.append(self._extract_person(results.pose_landmarks.landmark, w, h))
+        return people
+
+    def _extract_person(self, lm, w: int, h: int) -> Dict[str, List[Circle]]:
+        # lm: iterable of landmarks with x,y,visibility
 
         def get_xy(idx: int, vis_th: float = 0.5) -> Optional[Tuple[int, int, float]]:
             p = lm[idx]

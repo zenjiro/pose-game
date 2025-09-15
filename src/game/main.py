@@ -24,7 +24,7 @@ def main() -> None:
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
-    pose = PoseEstimator()
+    pose = PoseEstimator(max_people=2)
     rock_mgr = RockManager(width=1280, height=720)
 
     prev = time.time()
@@ -37,8 +37,9 @@ def main() -> None:
             if not ok or frame is None:
                 continue
 
-            circles = pose.process(frame)
-            draw_circles(frame, circles)
+            people = pose.process(frame)
+            for i, circles in enumerate(people[:2]):
+                draw_circles(frame, circles, color_shift=(0 if i == 0 else 128))
 
             # Update and draw rocks
             now = time.time()
