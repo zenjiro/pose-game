@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -152,13 +153,19 @@ class PoseEstimator:
             # see `Image` and `ImageFormat` on the tasks vision module.
             Image = getattr(mp_vision, "Image", None)
             ImageFormat = getattr(mp_vision, "ImageFormat", None)
+            # Fallback to top-level mp.Image if tasks vision doesn't expose Image
             if Image is None or ImageFormat is None:
-                print("[DEBUG] PoseEstimator: mp_vision.Image or ImageFormat unavailable; cannot use Tasks API for this frame")
+                Image = getattr(mp, "Image", None)
+                ImageFormat = getattr(mp, "ImageFormat", None)
+
+            if Image is None or ImageFormat is None:
+                print("[DEBUG] PoseEstimator: mp.Image or mp_vision.Image/ImageFormat unavailable; cannot use Tasks API for this frame")
                 return []
+
             img_fmt = getattr(ImageFormat, "SRGB", None)
             mp_image = Image(image_format=img_fmt, data=rgb)
-            # Use a dummy timestamp; we don't rely on temporal filtering here
-            res = self._multi.detect_for_video(mp_image, 0)
+            # VIDEO mode requires a timestamp in milliseconds
+            res = self._multi.detect_for_video(mp_image, int(time.time() * 1000))
             num = len(res.pose_landmarks) if res.pose_landmarks else 0
             print(f"[DEBUG] Tasks API returned {num} pose sets")
             if not res.pose_landmarks:

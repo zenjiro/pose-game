@@ -46,7 +46,12 @@ MediaPipe Pose と OpenCV を用いた、Webカメラ入力のオフライン 2 
 ## セットアップ（uv 使用）
 前提: Python 3.10+ 推奨、uv がインストール済み
 
+0) モデルのダウンロード
+最初に、姿勢検出モデルを以下からダウンロードし、`models/pose_landmarker_lite.task` として保存します。
+- [Pose Landmarker（Lite）](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/index?hl=ja#models)
+
 1) 仮想環境の作成
+
 ```
 uv venv
 ```
