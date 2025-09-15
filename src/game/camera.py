@@ -1,5 +1,5 @@
 import cv2
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 
 def _available_backends() -> List[Tuple[str, int]]:
@@ -58,6 +58,38 @@ def open_camera(
         cap.release()
 
     return None
+
+
+def probe_camera(device_index: int, width: Optional[int] = None, height: Optional[int] = None) -> Dict:
+    """Try to open the specified device and return details if successful."""
+    for backend_name, api_pref in _available_backends():
+        try:
+            cap = cv2.VideoCapture(device_index, api_pref)
+        except TypeError:
+            cap = cv2.VideoCapture(device_index)
+        if not cap.isOpened():
+            cap.release()
+            continue
+        if width is not None:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(width))
+        if height is not None:
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(height))
+        ok, frame = cap.read()
+        if ok and frame is not None:
+            h, w = frame.shape[:2]
+            cap.release()
+            return {"index": device_index, "backend": backend_name, "resolution": (w, h)}
+        cap.release()
+    return {"index": device_index, "backend": None, "resolution": None}
+
+
+def list_available_cameras(max_index: int = 5, width: Optional[int] = None, height: Optional[int] = None) -> List[Dict]:
+    found: List[Dict] = []
+    for idx in range(max_index + 1):
+        info = probe_camera(idx, width=width, height=height)
+        if info.get("backend") is not None:
+            found.append(info)
+    return found
 
 
 essc_keycodes = {27}
