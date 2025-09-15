@@ -35,7 +35,9 @@ class PoseEstimator:
         self.max_people = max(1, int(max_people))
         self._single = None
         self._multi = None
-        # Prefer Tasks API when available and max_people > 1
+        # Prefer Tasks API when available and max_people > 1. If Tasks initialization
+        # fails for any reason, fall back to the single-person Solutions API so
+        # `process()` continues to return detections.
         if TASKS_AVAILABLE and self.max_people > 1:
             # Build BaseOptions (use built-in model by leaving model_asset_path=None)
             base_options = mp_python.BaseOptions(model_asset_path=None)
@@ -51,8 +53,7 @@ class PoseEstimator:
                 self._multi = mp_vision.PoseLandmarker.create_from_options(options)
             except TypeError:
                 # Some versions of the Tasks API don't accept min_pose_tracking_confidence.
-                # Retry without the tracking option. If that still fails, fall back to
-                # the single-person Solutions API below.
+                # Retry without the tracking option.
                 try:
                     options = mp_vision.PoseLandmarkerOptions(
                         base_options=base_options,
@@ -62,10 +63,13 @@ class PoseEstimator:
                     )
                     self._multi = mp_vision.PoseLandmarker.create_from_options(options)
                 except Exception:
-                    # If any error occurs, fall back to the single-person API
-                    # implementation below by leaving self._multi as None.
+                    # Failure creating the Tasks API object; leave self._multi as None
+                    # and fall through to initialize the single-person API.
                     self._multi = None
-        else:
+
+        # If Tasks API wasn't used or failed to initialize, initialize the
+        # single-person Solutions API so `process()` can still detect landmarks.
+        if self._multi is None:
             self._mp_pose = mp.solutions.pose
             self._single = self._mp_pose.Pose(
                 static_image_mode=False,
@@ -75,6 +79,15 @@ class PoseEstimator:
                 min_detection_confidence=min_detection_confidence,
                 min_tracking_confidence=min_tracking_confidence,
             )
+            self._backend = "solutions_single"
+        else:
+            self._backend = "tasks_multi"
+
+        # Report backend selection at initialization time for debugging
+        try:
+            print(f"[PoseEstimator] initialized backend={self._backend}")
+        except Exception:
+            pass
 
     def close(self) -> None:
         try:
@@ -100,23 +113,47 @@ class PoseEstimator:
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
         people: List[Dict[str, List[Circle]]] = []
+        # Debug: only print detailed circle contents for the first processed frame
+        if not hasattr(self, "_debug_printed"):
+            self._debug_printed = False
+
+        # Debug: report which backend is active
+        try:
+            backend = "tasks_multi" if self._multi is not None else "solutions_single"
+        except Exception:
+            backend = "unknown"
+        print(f"[PoseEstimator] backend={backend}")
 
         if self._multi is not None:
             mp_image = mp_vision.Image(image_format=mp_vision.ImageFormat.SRGB, data=rgb)
             # Use a dummy timestamp; we don't rely on temporal filtering here
             res = self._multi.detect_for_video(mp_image, 0)
             if not res.pose_landmarks:
+                print("[PoseEstimator] multi detected 0 people")
                 return []
             # res.pose_landmarks is list[list[NormalizedLandmark]] per person
             for lms in res.pose_landmarks:
                 people.append(self._extract_person(lms, w, h))
+            print(f"[PoseEstimator] multi detected {len(people)} people")
+            for i, p in enumerate(people):
+                print(f"[PoseEstimator] multi person={i} head={len(p['head'])} hands={len(p['hands'])} feet={len(p['feet'])}")
+                if not self._debug_printed:
+                    # Print actual circle tuples for inspection
+                    print(f"[PoseEstimator] multi person={i} head_circles={[(c.x,c.y,c.r) for c in p['head']]} hands_circles={[(c.x,c.y,c.r) for c in p['hands']]} feet_circles={[(c.x,c.y,c.r) for c in p['feet']]}")
+                    self._debug_printed = True
             return people
 
         # Fallback to single-person solutions API
         results = self._single.process(rgb) if self._single is not None else None
         if not results or not results.pose_landmarks:
+            print("[PoseEstimator] single detected 0 people")
             return []
-        people.append(self._extract_person(results.pose_landmarks.landmark, w, h))
+        person = self._extract_person(results.pose_landmarks.landmark, w, h)
+        people.append(person)
+        print(f"[PoseEstimator] single detected 1 people head={len(person['head'])} hands={len(person['hands'])} feet={len(person['feet'])}")
+        if not getattr(self, "_debug_printed", False):
+            print(f"[PoseEstimator] single person=0 head_circles={[(c.x,c.y,c.r) for c in person['head']]} hands_circles={[(c.x,c.y,c.r) for c in person['hands']]} feet_circles={[(c.x,c.y,c.r) for c in person['feet']]}")
+            self._debug_printed = True
         return people
 
     def _extract_person(self, lm, w: int, h: int) -> Dict[str, List[Circle]]:

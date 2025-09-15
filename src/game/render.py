@@ -20,10 +20,24 @@ def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift
     }
     thickness = 2
 
+    # Debug: print incoming groups once per run to verify drawing inputs
+    if not hasattr(draw_circles, "_debug_printed"):
+        draw_circles._debug_printed = False
+    if not draw_circles._debug_printed:
+        try:
+            print(f"[draw_circles] groups={{k: len(v) for k,v in groups.items()}} color_shift={color_shift}")
+            for k, v in groups.items():
+                if v:
+                    print(f"[draw_circles] first {k} = ({v[0].x},{v[0].y},{v[0].r})")
+        except Exception:
+            pass
+        draw_circles._debug_printed = True
+
     for key, circles in groups.items():
         base = base_colors.get(key, (255, 255, 255))
         color = tuple(int((c + color_shift) % 256) for c in base)
         for c in circles:
+            # Outline-only drawing (restore original behavior)
             cv2.circle(frame, (int(c.x), int(c.y)), int(c.r), color, thickness, cv2.LINE_AA)
 
 

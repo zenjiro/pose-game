@@ -1,3 +1,4 @@
+import argparse
 import time
 import cv2
 
@@ -9,11 +10,18 @@ from .gameplay import RockManager
 
 
 def main() -> None:
-    # Select camera in full-screen GUI
-    idx = select_camera_gui(max_index=5, width=1280, height=720)
-    if idx is None:
-        print("Canceled camera selection.")
-        return
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--camera", type=int, help="Camera index to open (if provided, skip selector)")
+    args = parser.parse_args()
+
+    # Choose camera: use CLI arg if provided, otherwise use GUI selector
+    if args.camera is not None:
+        idx = int(args.camera)
+    else:
+        idx = select_camera_gui(max_index=5, width=1280, height=720)
+        if idx is None:
+            print("Canceled camera selection.")
+            return
 
     cap = open_camera(idx, width=1280, height=720)
     if cap is None or not cap.isOpened():
