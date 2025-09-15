@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import random
 import time
-from typing import List
-
-import numpy as np
+from typing import List, Tuple
 
 from .entities import Rock
+from .collision import circles_overlap
+import time
 
 
 class RockManager:
@@ -36,10 +36,32 @@ class RockManager:
         self.rocks.append(Rock(x=x, y=y, vx=vx, vy=vy, r=r, color=color))
 
     def update(self, dt: float) -> None:
+        now = time.time()
         for rock in self.rocks:
             rock.update(dt)
+            # If rock was hit some time ago, remove it after short effect
+            if rock.hit and rock.hit_time is not None and now - rock.hit_time > 0.25:
+                rock.y = self.height + rock.r + 1000  # push offscreen; cleanup below
+
         # Remove off-screen
         self.rocks = [rk for rk in self.rocks if rk.y - rk.r < self.height + 5]
+
+    def handle_head_collisions(self, head_circles: List[Tuple[int, int, int]]) -> int:
+        """Check head circles (list of (x,y,r)). Return number of hits detected.
+        Marks rocks as hit and returns number of rocks that hit a head this frame.
+        """
+        hits = 0
+        now = time.time()
+        for rk in self.rocks:
+            if rk.hit:
+                continue
+            for hx, hy, hr in head_circles:
+                if circles_overlap((rk.x, rk.y, rk.r), (hx, hy, hr)):
+                    rk.hit = True
+                    rk.hit_time = now
+                    hits += 1
+                    break
+        return hits
 
     def reset(self) -> None:
         self.rocks.clear()

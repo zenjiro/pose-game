@@ -46,8 +46,17 @@ def main() -> None:
                 continue
 
             people = pose.process(frame)
+            # Draw detected people and collect head circles for collision checks
+            head_circles = []
             for i, circles in enumerate(people[:2]):
                 draw_circles(frame, circles, color_shift=(0 if i == 0 else 128))
+                for c in circles.get("head", []):
+                    head_circles.append((c.x, c.y, c.r))
+
+            # Check head-rock collisions (step 4)
+            hits = rock_mgr.handle_head_collisions(head_circles)
+            if hits > 0:
+                cv2.putText(frame, f"HEAD HIT x{hits}", (60, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (20, 20, 230), 3, cv2.LINE_AA)
 
             # Update and draw rocks
             now = time.time()

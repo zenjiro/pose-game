@@ -12,6 +12,8 @@ class Rock:
     vy: float
     r: int
     color: Tuple[int, int, int]  # BGR
+    hit: bool = False
+    hit_time: float | None = None
 
     def update(self, dt: float) -> None:
         self.x += self.vx * dt

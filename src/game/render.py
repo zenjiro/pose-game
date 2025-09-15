@@ -51,3 +51,9 @@ def draw_rocks(frame: np.ndarray, rocks: List[Rock]) -> None:
         cv2.circle(frame, (int(rk.x), int(rk.y)), int(rk.r), rk.color, -1, cv2.LINE_AA)
         # Simple shading
         cv2.circle(frame, (int(rk.x - rk.r * 0.3), int(rk.y - rk.r * 0.3)), int(rk.r * 0.3), (100, 100, 100), -1, cv2.LINE_AA)
+        # If rock was hit, draw a red outline to indicate the collision
+        try:
+            if getattr(rk, "hit", False):
+                cv2.circle(frame, (int(rk.x), int(rk.y)), int(rk.r + 4), (0, 0, 200), 3, cv2.LINE_AA)
+        except Exception:
+            pass
