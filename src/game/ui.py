@@ -33,7 +33,7 @@ def _render_menu(
     y += 30
 
     # Instructions
-    inst = "Arrow Up/Down to select  •  Enter/Space to confirm  •  R to rescan  •  Esc to exit"
+    inst = "Arrow Up/Down to select  •  Enter/Space to confirm  •  R to rescan  •  F to toggle fullscreen  •  Esc to exit"
     cv2.putText(canvas, inst, (60, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 180, 180), 1, cv2.LINE_AA)
     y += 20
 
@@ -134,8 +134,9 @@ def select_camera_gui(
 ) -> Optional[int]:
     canvas = np.zeros((height, width, 3), dtype=np.uint8)
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    # Start in windowed mode to ensure key events are delivered reliably
+    # Start in windowed mode; allow toggling to fullscreen with 'F'
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+    is_fullscreen = False
 
     selected = 0
     preview_cap: Optional[cv2.VideoCapture] = None
@@ -205,6 +206,15 @@ def select_camera_gui(
             if key in DOWN_KEYS:
                 if items:
                     selected = (selected + 1) % len(items)
+                continue
+            if key in (ord('f'), ord('F')):
+                # Toggle fullscreen/windowed
+                is_fullscreen = not is_fullscreen
+                cv2.setWindowProperty(
+                    window_name,
+                    cv2.WND_PROP_FULLSCREEN,
+                    cv2.WINDOW_FULLSCREEN if is_fullscreen else cv2.WINDOW_NORMAL,
+                )
                 continue
             if key in (ord('r'), ord('R')):
                 # Release current preview before rescanning
