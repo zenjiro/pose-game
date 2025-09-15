@@ -6,6 +6,13 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 import mediapipe as mp
+# Import the pose solutions module explicitly so static analyzers (Pylance)
+# recognize `pose` as an attribute. If import fails at runtime, we'll fall
+# back to accessing `mp.solutions.pose`.
+try:
+    from mediapipe.solutions import pose as mp_pose_module  # type: ignore
+except Exception:
+    mp_pose_module = None
 
 # Tasks API imports for multi-person
 try:
@@ -31,18 +38,24 @@ class PoseEstimator:
         model_complexity: int = 1,
         smooth_landmarks: bool = True,
         max_people: int = 2,
+        tasks_model: Optional[str] = None,
     ) -> None:
         self.max_people = max(1, int(max_people))
-        print(f"[DEBUG] PoseEstimator.__init__: requested max_people={max_people} normalized={self.max_people} TASKS_AVAILABLE={TASKS_AVAILABLE}")
+        # tasks_model: path to a MediaPipe Tasks pose landmarker model file (tflite/task file).
+        # If None, we won't attempt to initialize the Tasks API even if available.
+        self._tasks_model = tasks_model
+        print(f"[DEBUG] PoseEstimator.__init__: requested max_people={max_people} normalized={self.max_people} TASKS_AVAILABLE={TASKS_AVAILABLE} tasks_model={'provided' if tasks_model else 'none'}")
         self._single = None
         self._multi = None
         # Prefer Tasks API when available and max_people > 1. If Tasks initialization
         # fails for any reason, fall back to the single-person Solutions API so
         # `process()` continues to return detections.
-        if TASKS_AVAILABLE and self.max_people > 1:
+        # Only try Tasks API when Tasks package is available, multi-person requested,
+        # and a model path was explicitly provided.
+        if TASKS_AVAILABLE and self.max_people > 1 and self._tasks_model:
             print("[DEBUG] PoseEstimator: attempting to initialize Tasks API for multi-person detection")
             # Build BaseOptions (use built-in model by leaving model_asset_path=None)
-            base_options = mp_python.BaseOptions(model_asset_path=None)
+            base_options = mp_python.BaseOptions(model_asset_path=self._tasks_model)
             # Try to construct PoseLandmarkerOptions with tracking option first.
             try:
                 options = mp_vision.PoseLandmarkerOptions(
@@ -75,10 +88,17 @@ class PoseEstimator:
                     except Exception:
                         print("[DEBUG] Could not print traceback for Tasks API init failure")
 
+        elif TASKS_AVAILABLE and self.max_people > 1 and not self._tasks_model:
+            # Tasks API is available but no model was provided.
+            print("[DEBUG] PoseEstimator: MediaPipe Tasks available but no tasks_model provided; skipping Tasks API and using Solutions API (single-person)")
+
         # If Tasks API wasn't used or failed to initialize, initialize the
         # single-person Solutions API so `process()` can still detect landmarks.
         if self._multi is None:
-            self._mp_pose = mp.solutions.pose
+            # Prefer explicit import if it succeeded, otherwise fall back to
+            # `mp.solutions.pose` at runtime.
+            mp_pose_mod = mp_pose_module if mp_pose_module is not None else getattr(mp, "solutions").pose
+            self._mp_pose = mp_pose_mod
             self._single = self._mp_pose.Pose(
                 static_image_mode=False,
                 model_complexity=model_complexity,
@@ -128,7 +148,15 @@ class PoseEstimator:
 
         print(f"[DEBUG] PoseEstimator.process: backend={getattr(self, '_backend', None)} frame={w}x{h}")
         if self._multi is not None:
-            mp_image = mp_vision.Image(image_format=mp_vision.ImageFormat.SRGB, data=rgb)
+            # Guard attribute access to satisfy static analyzers that may not
+            # see `Image` and `ImageFormat` on the tasks vision module.
+            Image = getattr(mp_vision, "Image", None)
+            ImageFormat = getattr(mp_vision, "ImageFormat", None)
+            if Image is None or ImageFormat is None:
+                print("[DEBUG] PoseEstimator: mp_vision.Image or ImageFormat unavailable; cannot use Tasks API for this frame")
+                return []
+            img_fmt = getattr(ImageFormat, "SRGB", None)
+            mp_image = Image(image_format=img_fmt, data=rgb)
             # Use a dummy timestamp; we don't rely on temporal filtering here
             res = self._multi.detect_for_video(mp_image, 0)
             num = len(res.pose_landmarks) if res.pose_landmarks else 0

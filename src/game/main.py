@@ -12,6 +12,7 @@ from .gameplay import RockManager
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--camera", type=int, help="Camera index to open (if provided, skip selector)")
+    parser.add_argument("--tasks-model", type=str, help="Optional path to MediaPipe Tasks pose landmarker model file for multi-person detection")
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
     args = parser.parse_args()
 
@@ -33,7 +34,7 @@ def main() -> None:
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
-    pose = PoseEstimator(max_people=2)
+    pose = PoseEstimator(max_people=2, tasks_model=args.tasks_model)
     rock_mgr = RockManager(width=1280, height=720)
 
     prev = time.time()
