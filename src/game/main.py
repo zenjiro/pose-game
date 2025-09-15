@@ -12,6 +12,7 @@ from .gameplay import RockManager
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--camera", type=int, help="Camera index to open (if provided, skip selector)")
+    parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
     args = parser.parse_args()
 
     # Choose camera: use CLI arg if provided, otherwise use GUI selector
@@ -46,6 +47,22 @@ def main() -> None:
             ok, frame = cap.read()
             if not ok or frame is None:
                 continue
+
+            # If duplicate mode is enabled, clip the center vertical band and duplicate it
+            # to create a left/right mirrored-like frame for two-player testing.
+            if args.duplicate:
+                h, w = frame.shape[:2]
+                # Clip the center region: keep middle 50% (from 25% to 75%)
+                left = int(w * 0.25)
+                right = int(w * 0.75)
+                center = frame[:, left:right].copy()
+                # Resize center to half-width each side if needed to match original width
+                # We'll tile [center | center] to recreate the full width. If center*2 != w,
+                # resize each half to w//2 to avoid off-by-one issues.
+                half_w = w // 2
+                if center.shape[1] != half_w:
+                    center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
+                frame = cv2.hconcat([center, center])
 
             people = pose.process(frame)
             # Draw detected people and collect head circles for collision checks
