@@ -33,12 +33,14 @@ class PoseEstimator:
         max_people: int = 2,
     ) -> None:
         self.max_people = max(1, int(max_people))
+        print(f"[DEBUG] PoseEstimator.__init__: requested max_people={max_people} normalized={self.max_people} TASKS_AVAILABLE={TASKS_AVAILABLE}")
         self._single = None
         self._multi = None
         # Prefer Tasks API when available and max_people > 1. If Tasks initialization
         # fails for any reason, fall back to the single-person Solutions API so
         # `process()` continues to return detections.
         if TASKS_AVAILABLE and self.max_people > 1:
+            print("[DEBUG] PoseEstimator: attempting to initialize Tasks API for multi-person detection")
             # Build BaseOptions (use built-in model by leaving model_asset_path=None)
             base_options = mp_python.BaseOptions(model_asset_path=None)
             # Try to construct PoseLandmarkerOptions with tracking option first.
@@ -65,7 +67,13 @@ class PoseEstimator:
                 except Exception:
                     # Failure creating the Tasks API object; leave self._multi as None
                     # and fall through to initialize the single-person API.
+                    import traceback as _tb
                     self._multi = None
+                    print("[DEBUG] PoseEstimator: Tasks API initialization failed, will fall back to Solutions API")
+                    try:
+                        _tb.print_exc()
+                    except Exception:
+                        print("[DEBUG] Could not print traceback for Tasks API init failure")
 
         # If Tasks API wasn't used or failed to initialize, initialize the
         # single-person Solutions API so `process()` can still detect landmarks.
@@ -80,8 +88,10 @@ class PoseEstimator:
                 min_tracking_confidence=min_tracking_confidence,
             )
             self._backend = "solutions_single"
+            print(f"[DEBUG] PoseEstimator: initialized backend={self._backend}")
         else:
             self._backend = "tasks_multi"
+            print(f"[DEBUG] PoseEstimator: initialized backend={self._backend} (num_poses={self.max_people})")
 
     # initialization
 
@@ -116,10 +126,13 @@ class PoseEstimator:
         # Use logger to report backend at debug level
         # determine backend for internal use
 
+        print(f"[DEBUG] PoseEstimator.process: backend={getattr(self, '_backend', None)} frame={w}x{h}")
         if self._multi is not None:
             mp_image = mp_vision.Image(image_format=mp_vision.ImageFormat.SRGB, data=rgb)
             # Use a dummy timestamp; we don't rely on temporal filtering here
             res = self._multi.detect_for_video(mp_image, 0)
+            num = len(res.pose_landmarks) if res.pose_landmarks else 0
+            print(f"[DEBUG] Tasks API returned {num} pose sets")
             if not res.pose_landmarks:
                 return []
             # res.pose_landmarks is list[list[NormalizedLandmark]] per person
@@ -133,7 +146,10 @@ class PoseEstimator:
         # Fallback to single-person solutions API
         results = self._single.process(rgb) if self._single is not None else None
         if not results or not results.pose_landmarks:
+            print("[DEBUG] Solutions API returned no pose_landmarks")
             return []
+        lm_count = len(results.pose_landmarks.landmark) if results.pose_landmarks and results.pose_landmarks.landmark else 0
+        print(f"[DEBUG] Solutions API returned landmarks count={lm_count}")
         person = self._extract_person(results.pose_landmarks.landmark, w, h)
         people.append(person)
         if not getattr(self, "_debug_printed", False):

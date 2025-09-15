@@ -65,6 +65,18 @@ def main() -> None:
                 frame = cv2.hconcat([center, center])
 
             people = pose.process(frame)
+            # Debug: log frame size and detected people / circle counts
+            try:
+                h, w = frame.shape[:2]
+            except Exception:
+                h = w = None
+            print(f"[DEBUG] frame size: {w}x{h}")
+            print(f"[DEBUG] PoseEstimator returned {len(people)} people")
+            for pi, circles in enumerate(people[:4]):
+                head_count = len(circles.get("head", []))
+                hands_count = len(circles.get("hands", []))
+                feet_count = len(circles.get("feet", []))
+                print(f"[DEBUG] person[{pi}] head={head_count} hands={hands_count} feet={feet_count}")
             # Draw detected people and collect head circles for collision checks
             head_circles = []
             for i, circles in enumerate(people[:2]):
