@@ -160,8 +160,10 @@ uv run python -m game.main
   - 実装メモ: `src/game/collision.py` に circle overlap ユーティリティを追加。`Rock` に `hit` フラグを導入し、
     `RockManager.handle_head_collisions()` で頭の円と岩の当たり判定を行うようにした。
     ヒット時は `hit=True` として短時間表示後に削除し、`main.py` 側で一時的な UI 表示（"HEAD HIT"）を行う。
-- [ ] 5. 岩と手の当たり判定
-  - 受け入れ基準: 手に当たると岩が壊れるがスコアは変化しない
+- [x] 5. 岩と手の当たり判定
+  - 実装メモ: `RockManager.handle_collisions(kind='hands', ...)` を導入し、
+    手ヒットでは岩を破壊（`hit=True`）するようにした。衝突処理は汎用ハンドラで共通化しており、
+    ステップ6（足）でも同じハンドラを再利用可能にした。
 - [ ] 6. 岩と足の当たり判定
   - 受け入れ基準: 足ヒットで岩破壊、スコア +1（UI表示）
 - [ ] 7. ライフの計算（初期3、頭ヒットで -1）
