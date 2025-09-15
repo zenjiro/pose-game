@@ -58,6 +58,16 @@ def main() -> None:
             if hits > 0:
                 cv2.putText(frame, f"HEAD HIT x{hits}", (60, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (20, 20, 230), 3, cv2.LINE_AA)
 
+            # Collect hand circles and check hand-rock collisions (step 5)
+            hand_circles = []
+            for circles in people[:2]:
+                for c in circles.get("hands", []):
+                    hand_circles.append((c.x, c.y, c.r))
+            hand_events = rock_mgr.handle_collisions(kind="hands", circles=hand_circles)
+            hand_hits = hand_events.get("hits", 0)
+            if hand_hits > 0:
+                cv2.putText(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3, cv2.LINE_AA)
+
             # Update and draw rocks
             now = time.time()
             dt = now - prev

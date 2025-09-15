@@ -50,18 +50,34 @@ class RockManager:
         """Check head circles (list of (x,y,r)). Return number of hits detected.
         Marks rocks as hit and returns number of rocks that hit a head this frame.
         """
+        # Keep for backward compatibility; delegate to generic handler
+        events = self.handle_collisions(kind="head", circles=head_circles)
+        return events.get("hits", 0)
+
+    def handle_collisions(self, kind: str, circles: List[Tuple[int, int, int]]) -> dict:
+        """Generic collision handler.
+
+        kind: "head" | "hands" | ...
+        circles: list of (x,y,r) tuples representing target circles to check.
+
+        Returns a dict with summary, e.g. {"hits": int}.
+        Marks rocks as hit when collision is detected. Behavior can be specialized per kind.
+        """
         hits = 0
         now = time.time()
         for rk in self.rocks:
             if rk.hit:
                 continue
-            for hx, hy, hr in head_circles:
-                if circles_overlap((rk.x, rk.y, rk.r), (hx, hy, hr)):
+            for cx, cy, cr in circles:
+                if circles_overlap((rk.x, rk.y, rk.r), (cx, cy, cr)):
+                    # For head collisions we mark as hit (damage). For hands we also mark hit (destroy),
+                    # future kinds can adjust scoring/lives externally.
                     rk.hit = True
                     rk.hit_time = now
                     hits += 1
                     break
-        return hits
+
+        return {"hits": hits}
 
     def reset(self) -> None:
         self.rocks.clear()
