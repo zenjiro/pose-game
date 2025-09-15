@@ -10,8 +10,9 @@ from .devices import get_camera_names
 ESC = 27
 ENTER = 13
 SPACE = 32
-UP_KEYS = {2490368, 82}   # Windows arrow up, keypad code; 82 sometimes from older backends
-DOWN_KEYS = {2621440, 84} # Windows arrow down; 84 sometimes from older backends
+# Prefer waitKeyEx extended codes; include legacy codes as fallback
+UP_KEYS = {2490368, 0x26, 82}   # 0x26 is VK_UP
+DOWN_KEYS = {2621440, 0x28, 84} # 0x28 is VK_DOWN
 
 
 def _render_menu(
@@ -133,7 +134,8 @@ def select_camera_gui(
 ) -> Optional[int]:
     canvas = np.zeros((height, width, 3), dtype=np.uint8)
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    # Start in windowed mode to ensure key events are delivered reliably
+    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
 
     selected = 0
     preview_cap: Optional[cv2.VideoCapture] = None
@@ -182,7 +184,8 @@ def select_camera_gui(
             _render_preview(canvas, preview_frame, preview_label)
 
             cv2.imshow(window_name, canvas)
-            key = cv2.waitKey(30) & 0xFFFFFFFF
+            # Use waitKeyEx to capture special keys like arrows reliably on Windows
+            key = cv2.waitKeyEx(30) & 0xFFFFFFFF
 
             if key == 0xFFFFFFFF:
                 continue
