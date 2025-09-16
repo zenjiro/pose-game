@@ -14,6 +14,7 @@ class PlayerState:
     last_hit_time: float = 0.0
     invulnerable_duration: float = 1.0  # seconds of invulnerability after head hit
     is_game_over: bool = False
+    next_life_threshold: int = 10  # score at which the next bonus life is awarded
 
     def take_damage(self) -> bool:
         """Take damage (lose a life). Returns True if damage was taken, False if invulnerable."""
@@ -32,9 +33,15 @@ class PlayerState:
         return True
 
     def add_score(self, points: int = 1) -> None:
-        """Add points to score."""
-        if not self.is_game_over:
-            self.score += points
+        """Add points to score and award a life at thresholds (10, 20, 30, ...)."""
+        if self.is_game_over:
+            return
+        prev_score = self.score
+        self.score += points
+        # Award one life per threshold crossed; supports points > 1
+        while self.score >= self.next_life_threshold:
+            self.lives += 1
+            self.next_life_threshold += 10
 
     def is_invulnerable(self) -> bool:
         """Check if player is currently invulnerable to head hits."""
@@ -47,6 +54,7 @@ class PlayerState:
         self.lives = 3
         self.last_hit_time = 0.0
         self.is_game_over = False
+        self.next_life_threshold = 10
 
 
 class GameState:
