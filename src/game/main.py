@@ -1,6 +1,14 @@
 import argparse
 import time
+import os
 import cv2
+
+# Optional: PIL for rendering Japanese text
+try:
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore
+    PIL_AVAILABLE = True
+except Exception:
+    PIL_AVAILABLE = False
 
 from .camera import open_camera
 from .ui import select_camera_gui
@@ -15,6 +23,7 @@ def main() -> None:
     parser.add_argument("-c", "--camera", type=int, help="Camera index to open (if provided, skip selector)")
     parser.add_argument("--tasks-model", type=str, default="models/pose_landmarker_lite.task", help="Optional path to MediaPipe Tasks pose landmarker model file for multi-person detection")
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
+    parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
     args = parser.parse_args()
 
     # Choose camera: use CLI arg if provided, otherwise use GUI selector
@@ -70,14 +79,44 @@ def main() -> None:
             # Show title screen if game hasn't started
             if not game_state.game_started:
                 # Show title screen (draw after detection to avoid occluding pose inputs)
-                cv2.putText(frame, "POSE GAME", (frame.shape[1]//2 - 150, frame.shape[0]//2 - 100), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 255, 255), 5, cv2.LINE_AA)
-                cv2.putText(frame, "Avoid rocks with your head!", (frame.shape[1]//2 - 200, frame.shape[0]//2 - 20), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
-                cv2.putText(frame, "Hit rocks with your feet to score!", (frame.shape[1]//2 - 230, frame.shape[0]//2 + 20), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
-                cv2.putText(frame, "Press SPACE or ENTER to start", (frame.shape[1]//2 - 220, frame.shape[0]//2 + 80), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, (100, 255, 100), 2, cv2.LINE_AA)
+                h, w = frame.shape[:2]
+                # Try to render Japanese via PIL if available and font provided
+                if PIL_AVAILABLE and args.jp_font and os.path.isfile(args.jp_font):
+                    img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                    draw = ImageDraw.Draw(img)
+                    try:
+                        title_font = ImageFont.truetype(args.jp_font, size=int(h * 0.12))
+                        sub_font = ImageFont.truetype(args.jp_font, size=int(h * 0.045))
+                        hint_font = ImageFont.truetype(args.jp_font, size=int(h * 0.04))
+                    except Exception:
+                        title_font = sub_font = hint_font = None
+                    # Text content (Japanese)
+                    title = "ポーズゲーム"
+                    line1 = "頭で岩を避けよう！"
+                    line2 = "足で岩を蹴ってスコアを稼ごう！"
+                    hint = "スペース または エンター で開始"
+                    # Helper to center text
+                    def draw_centered(text: str, y: int, font, color=(255,255,0)):
+                        if font is None:
+                            return
+                        tw, th = draw.textsize(text, font=font)
+                        x = w//2 - tw//2
+                        draw.text((x, y), text, fill=color, font=font)
+                    draw_centered(title, int(h*0.30), title_font, (255, 255, 0))
+                    draw_centered(line1, int(h*0.45), sub_font, (255, 255, 255))
+                    draw_centered(line2, int(h*0.52), sub_font, (255, 255, 255))
+                    draw_centered(hint, int(h*0.62), hint_font, (100, 255, 100))
+                    frame = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                else:
+                    # Fallback to ASCII text
+                    cv2.putText(frame, "POSE GAME", (frame.shape[1]//2 - 150, frame.shape[0]//2 - 100), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 255, 255), 5, cv2.LINE_AA)
+                    cv2.putText(frame, "Avoid rocks with your head!", (frame.shape[1]//2 - 200, frame.shape[0]//2 - 20), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.putText(frame, "Hit rocks with your feet to score!", (frame.shape[1]//2 - 230, frame.shape[0]//2 + 20), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.putText(frame, "Press SPACE or ENTER to start", (frame.shape[1]//2 - 220, frame.shape[0]//2 + 80), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (100, 255, 100), 2, cv2.LINE_AA)
             else:
                 # Only spawn new rocks if game is started and still active
                 if not game_state.game_over:
