@@ -26,6 +26,8 @@ def find_default_jp_font() -> str | None:
     plat = sys.platform
     if plat.startswith("win"):
         candidates = [
+            r"C:\\Windows\\Fonts\\meiryob.ttc",
+            r"C:\\Windows\\Fonts\\YuGothB.ttc",
             r"C:\\Windows\\Fonts\\meiryo.ttc",
             r"C:\\Windows\\Fonts\\YuGothM.ttc",
             r"C:\\Windows\\Fonts\\msgothic.ttc",
@@ -39,6 +41,8 @@ def find_default_jp_font() -> str | None:
     else:
         # Linux
         candidates = [
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
             "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf",
@@ -136,21 +140,33 @@ def main() -> None:
                     line2 = "あしで いわを けって スコアを かせごう！"
                     hint = "スペース または エンター で スタート"
                     # Helper to center text
-                    def draw_centered(text: str, y: int, font, color=(255,255,0)):
+                    def draw_centered(text: str, y: int, font, color=(255,255,0), outline_color=(0,0,0), outline_width=2):
                         if font is None:
                             return
-                        # PIL.ImageDraw in newer versions uses textbbox for metrics
-                        try:
-                            bbox = draw.textbbox((0, 0), text, font=font)
-                            tw, _h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-                        except Exception:
-                            # Fallback to legacy textsize if available
+                        
+                        # Helper to get text size
+                        def get_text_size(txt, fnt):
                             try:
-                                tw, _h = draw.textsize(text, font=font)  # type: ignore[attr-defined]
+                                bbox = draw.textbbox((0, 0), txt, font=fnt)
+                                return bbox[2] - bbox[0], bbox[3] - bbox[1]
                             except Exception:
-                                tw, _h = 0, 0
+                                try:
+                                    return draw.textsize(txt, font=fnt)
+                                except Exception:
+                                    return 0, 0
+
+                        tw, _ = get_text_size(text, font)
                         x = w//2 - tw//2
-                        draw.text((x, y), text, fill=color, font=font)
+                        
+                        # Draw outline
+                        for i in [-outline_width, 0, outline_width]:
+                            for j in [-outline_width, 0, outline_width]:
+                                if i == 0 and j == 0:
+                                    continue
+                                draw.text((x + i, y + j), text, font=font, fill=outline_color)
+                        
+                        # Draw text
+                        draw.text((x, y), text, font=font, fill=color)
                     draw_centered(title, int(h*0.30), title_font, (255, 255, 0))
                     draw_centered(line1, int(h*0.45), sub_font, (255, 255, 255))
                     draw_centered(line2, int(h*0.52), sub_font, (255, 255, 255))
