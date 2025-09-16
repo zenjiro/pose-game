@@ -161,6 +161,11 @@ def main() -> None:
                     msg = "TIE GAME!"
                 cv2.putText(frame, msg, (frame.shape[1]//2 - 200, frame.shape[0]//2), 
                            cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 255, 255), 4, cv2.LINE_AA)
+                
+                # Show restart instructions
+                restart_msg = "Press SPACE or ENTER to play again"
+                cv2.putText(frame, restart_msg, (frame.shape[1]//2 - 220, frame.shape[0]//2 + 60), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
 
             # FPS calc (use smoothed FPS)
             if dt > 0:
@@ -171,6 +176,11 @@ def main() -> None:
             key = cv2.waitKey(1) & 0xFF
             if key == 27:  # Esc
                 break
+            elif game_state.game_over and (key == 32 or key == 13):  # Space (32) or Enter (13)
+                # Reset game state for new game
+                game_state.reset()
+                rock_mgr.reset()
+                print("[INFO] Game restarted - all players reset to 3 lives and 0 score")
     finally:
         cap.release()
         try:
