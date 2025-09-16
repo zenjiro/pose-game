@@ -56,6 +56,19 @@ def find_default_jp_font() -> str | None:
             pass
     return None
 
+def putText_with_outline(frame, text, pos, font, scale, color, thickness, outline_color=(0,0,0), outline_width=2):
+    cv2.putText(frame, text, (pos[0]-outline_width, pos[1]), font, scale, outline_color, thickness, cv2.LINE_AA)
+    cv2.putText(frame, text, (pos[0]+outline_width, pos[1]), font, scale, outline_color, thickness, cv2.LINE_AA)
+    cv2.putText(frame, text, (pos[0], pos[1]-outline_width), font, scale, outline_color, thickness, cv2.LINE_AA)
+    cv2.putText(frame, text, (pos[0], pos[1]+outline_width), font, scale, outline_color, thickness, cv2.LINE_AA)
+    cv2.putText(frame, text, pos, font, scale, color, thickness, cv2.LINE_AA)
+
+def draw_text_with_outline(draw, text, pos, font, color, outline_color=(0,0,0), outline_width=2):
+    draw.text((pos[0]-outline_width, pos[1]), text, font=font, fill=outline_color)
+    draw.text((pos[0]+outline_width, pos[1]), text, font=font, fill=outline_color)
+    draw.text((pos[0], pos[1]-outline_width), text, font=font, fill=outline_color)
+    draw.text((pos[0], pos[1]+outline_width), text, font=font, fill=outline_color)
+    draw.text(pos, text, font=font, fill=color)
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -140,7 +153,7 @@ def main() -> None:
                     line2 = "あしで いわを けって スコアを かせごう！"
                     hint = "スペース または エンター で スタート"
                     # Helper to center text
-                    def draw_centered(text: str, y: int, font, color=(255,255,0), outline_color=(0,0,0), outline_width=2):
+                    def draw_centered(text: str, y: int, font, color=(255,255,0)):
                         if font is None:
                             return
                         
@@ -158,15 +171,8 @@ def main() -> None:
                         tw, _ = get_text_size(text, font)
                         x = w//2 - tw//2
                         
-                        # Draw outline
-                        for i in [-outline_width, 0, outline_width]:
-                            for j in [-outline_width, 0, outline_width]:
-                                if i == 0 and j == 0:
-                                    continue
-                                draw.text((x + i, y + j), text, font=font, fill=outline_color)
-                        
-                        # Draw text
-                        draw.text((x, y), text, font=font, fill=color)
+                        draw_text_with_outline(draw, text, (x, y), font, color)
+
                     draw_centered(title, int(h*0.30), title_font, (255, 255, 0))
                     draw_centered(line1, int(h*0.45), sub_font, (255, 255, 255))
                     draw_centered(line2, int(h*0.52), sub_font, (255, 255, 255))
@@ -174,14 +180,14 @@ def main() -> None:
                     frame = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
                 else:
                     # Fallback to ASCII text
-                    cv2.putText(frame, "POSE GAME", (frame.shape[1]//2 - 150, frame.shape[0]//2 - 100), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 255, 255), 5, cv2.LINE_AA)
-                    cv2.putText(frame, "Avoid rocks with your head!", (frame.shape[1]//2 - 200, frame.shape[0]//2 - 20), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
-                    cv2.putText(frame, "Hit rocks with your feet to score!", (frame.shape[1]//2 - 230, frame.shape[0]//2 + 20), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
-                    cv2.putText(frame, "Press SPACE or ENTER to start", (frame.shape[1]//2 - 220, frame.shape[0]//2 + 80), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (100, 255, 100), 2, cv2.LINE_AA)
+                    putText_with_outline(frame, "POSE GAME", (frame.shape[1]//2 - 150, frame.shape[0]//2 - 100), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 255, 255), 5)
+                    putText_with_outline(frame, "Avoid rocks with your head!", (frame.shape[1]//2 - 200, frame.shape[0]//2 - 20), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
+                    putText_with_outline(frame, "Hit rocks with your feet to score!", (frame.shape[1]//2 - 230, frame.shape[0]//2 + 20), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
+                    putText_with_outline(frame, "Press SPACE or ENTER to start", (frame.shape[1]//2 - 220, frame.shape[0]//2 + 80), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (100, 255, 100), 2)
             else:
                 # Only spawn new rocks if game is started and still active
                 if not game_state.game_over:
@@ -244,7 +250,7 @@ def main() -> None:
                 (tw, th), _ = cv2.getTextSize(timer_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
                 tx = w // 2 - tw // 2
                 ty = 40
-                cv2.putText(frame, timer_text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+                putText_with_outline(frame, timer_text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
                 # Collect head circles per player for collision checks
                 head_hits_display = []
@@ -258,13 +264,13 @@ def main() -> None:
                             # Try to damage the player (respects invulnerability)
                             damage_taken = game_state.handle_head_hit(i)
                             if damage_taken:
-                                head_hits_display.append(f"LIFE LOST!")
+                                head_hits_display.append("LIFE LOST!")
                             else:
-                                head_hits_display.append(f"INVULNERABLE")
+                                head_hits_display.append("INVULNERABLE")
 
                 # Display head hit messages
                 for idx, msg in enumerate(head_hits_display):
-                    cv2.putText(frame, msg, (60, 60 + idx * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (20, 20, 230), 3, cv2.LINE_AA)
+                    putText_with_outline(frame, msg, (60, 60 + idx * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (20, 20, 230), 3)
 
                 # Only run collision detection and game logic when game is active
                 # Collect hand circles and check hand-rock collisions (step 5)
@@ -275,7 +281,7 @@ def main() -> None:
                 hand_events = rock_mgr.handle_collisions(kind="hands", circles=hand_circles)
                 hand_hits = hand_events.get("hits", 0)
                 if hand_hits > 0:
-                    cv2.putText(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3, cv2.LINE_AA)
+                    putText_with_outline(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3)
 
                 # Collect foot circles per player and check foot-rock collisions (step 6)
                 # Use per-player scoring: foot hit => +1
@@ -343,8 +349,8 @@ def main() -> None:
 
                         if i == 0:
                             # Player 1: left side
-                            draw.text((margin, y_score), score_text, fill=name_color_pil, font=score_font)
-                            draw.text((margin, y_lives), lives_text, fill=lives_color_pil, font=lives_font)
+                            draw_text_with_outline(draw, score_text, (margin, y_score), score_font, name_color_pil)
+                            draw_text_with_outline(draw, lives_text, (margin, y_lives), lives_font, lives_color_pil)
                         else:
                             # Player 2: right side (right-aligned)
                             try:
@@ -358,8 +364,8 @@ def main() -> None:
                             except Exception:
                                 lives_w = 100 # fallback
 
-                            draw.text((w - margin - score_w, y_score), score_text, fill=name_color_pil, font=score_font)
-                            draw.text((w - margin - lives_w, y_lives), lives_text, fill=lives_color_pil, font=lives_font)
+                            draw_text_with_outline(draw, score_text, (w - margin - score_w, y_score), score_font, name_color_pil)
+                            draw_text_with_outline(draw, lives_text, (w - margin - lives_w, y_lives), lives_font, lives_color_pil)
 
                     else: # Fallback to ASCII
                         score_text = f"Score: {player.score}"
@@ -374,14 +380,14 @@ def main() -> None:
 
                         if i == 0:
                             # Player 1: left side
-                            cv2.putText(frame, score_text, (margin, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
-                            cv2.putText(frame, lives_text, (margin, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+                            putText_with_outline(frame, score_text, (margin, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2)
+                            putText_with_outline(frame, lives_text, (margin, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2)
                         else:
                             # Player 2: right side (right-aligned)
                             (score_w, _), _ = cv2.getTextSize(score_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
                             (lives_w, _), _ = cv2.getTextSize(lives_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                            cv2.putText(frame, score_text, (w - margin - score_w, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
-                            cv2.putText(frame, lives_text, (w - margin - lives_w, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+                            putText_with_outline(frame, score_text, (w - margin - score_w, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2)
+                            putText_with_outline(frame, lives_text, (w - margin - lives_w, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2)
 
                 if use_jp_font and img_pil:
                     frame = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
@@ -416,7 +422,8 @@ def main() -> None:
                         restart_msg = "スペースキーかエンターキーでもういちど"
 
                         def draw_centered_gameover(text: str, center_x: int, y: int, font, color=(255,255,0)):
-                            if font is None: return
+                            if font is None:
+                                return
                             try:
                                 bbox = draw.textbbox((0, 0), text, font=font)
                                 tw, _h = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -426,7 +433,7 @@ def main() -> None:
                                 except Exception:
                                     tw, _h = 0, 0
                             x = center_x - tw//2
-                            draw.text((x, y), text, fill=color, font=font)
+                            draw_text_with_outline(draw, text, (x, y), font, color)
 
                         y_pos = int(h*0.45)
                         draw_centered_gameover(left_msg, w // 4, y_pos, msg_font)
@@ -455,7 +462,7 @@ def main() -> None:
                             (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, 4)
                             x = center_x - tw // 2
                             y = center_y + th // 2
-                            cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, 4, cv2.LINE_AA)
+                            putText_with_outline(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, 4)
 
                         put_centered(left_msg, left_center[0], left_center[1], 1.4, (0, 255, 255))
                         put_centered(right_msg, right_center[0], right_center[1], 1.4, (0, 255, 255))
@@ -465,7 +472,7 @@ def main() -> None:
                         (rw, rh), _ = cv2.getTextSize(restart_msg, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
                         rx = w // 2 - rw // 2
                         ry = h // 2 + 60
-                        cv2.putText(frame, restart_msg, (rx, ry), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+                        putText_with_outline(frame, restart_msg, (rx, ry), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
             # FPS calc (use smoothed FPS) - calculate timing outside game logic
             now = time.time()
