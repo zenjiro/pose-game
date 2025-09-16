@@ -300,33 +300,85 @@ def main() -> None:
                 # Display game over messages side-by-side
                 if game_state.game_over:
                     winner = game_state.get_winner()
-                    left_center = (w // 4, h // 2)
-                    right_center = (3 * w // 4, h // 2)
-                    if winner == 0:
-                        left_msg = "PLAYER 1 WINS!"
-                        right_msg = "PLAYER 2 LOSES"
-                    elif winner == 1:
-                        left_msg = "PLAYER 1 LOSES"
-                        right_msg = "PLAYER 2 WINS!"
+                    # Try to render Japanese via PIL if available and font provided
+                    jp_font_path = args.jp_font
+                    if jp_font_path is None:
+                        jp_font_path = find_default_jp_font()
+
+                    if PIL_AVAILABLE and jp_font_path and os.path.isfile(jp_font_path):
+                        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                        draw = ImageDraw.Draw(img)
+                        try:
+                            msg_font = ImageFont.truetype(jp_font_path, size=int(h * 0.08))
+                            restart_font = ImageFont.truetype(jp_font_path, size=int(h * 0.04))
+                        except Exception:
+                            msg_font = restart_font = None
+
+                        if winner == 0:
+                            left_msg = "プレイヤー1 の かち"
+                            right_msg = "プレイヤー2 の まけ"
+                        elif winner == 1:
+                            left_msg = "プレイヤー1 の まけ"
+                            right_msg = "プレイヤー2 の かち"
+                        else:
+                            left_msg = "ひきわけ"
+                            right_msg = None
+                        
+                        restart_msg = "スペースキーかエンターキーでもういちど"
+
+                        def draw_centered_gameover(text: str, center_x: int, y: int, font, color=(255,255,0)):
+                            if font is None: return
+                            try:
+                                bbox = draw.textbbox((0, 0), text, font=font)
+                                tw, _h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+                            except Exception:
+                                try:
+                                    tw, _h = draw.textsize(text, font=font)
+                                except Exception:
+                                    tw, _h = 0, 0
+                            x = center_x - tw//2
+                            draw.text((x, y), text, fill=color, font=font)
+
+                        y_pos = int(h*0.45)
+                        draw_centered_gameover(left_msg, w // 4, y_pos, msg_font)
+                        if right_msg:
+                            draw_centered_gameover(right_msg, 3 * w // 4, y_pos, msg_font)
+                        else: # Tie
+                            draw_centered_gameover(left_msg, w // 2, y_pos, msg_font)
+
+                        # Centered restart message
+                        draw_centered_gameover(restart_msg, w // 2, int(h*0.62), restart_font, (100, 255, 100))
+                        
+                        frame = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
                     else:
-                        left_msg = right_msg = "TIE"
+                        # Fallback to ASCII
+                        left_center = (w // 4, h // 2)
+                        right_center = (3 * w // 4, h // 2)
+                        if winner == 0:
+                            left_msg = "PLAYER 1 WINS!"
+                            right_msg = "PLAYER 2 LOSES"
+                        elif winner == 1:
+                            left_msg = "PLAYER 1 LOSES"
+                            right_msg = "PLAYER 2 WINS!"
+                        else:
+                            left_msg = right_msg = "TIE"
 
-                    # Helper to center text at a point
-                    def put_centered(text: str, center_x: int, center_y: int, scale: float, color: tuple[int,int,int]):
-                        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, 4)
-                        x = center_x - tw // 2
-                        y = center_y + th // 2
-                        cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, 4, cv2.LINE_AA)
+                        # Helper to center text at a point
+                        def put_centered(text: str, center_x: int, center_y: int, scale: float, color: tuple[int,int,int]):
+                            (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, 4)
+                            x = center_x - tw // 2
+                            y = center_y + th // 2
+                            cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, 4, cv2.LINE_AA)
 
-                    put_centered(left_msg, left_center[0], left_center[1], 1.4, (0, 255, 255))
-                    put_centered(right_msg, right_center[0], right_center[1], 1.4, (0, 255, 255))
+                        put_centered(left_msg, left_center[0], left_center[1], 1.4, (0, 255, 255))
+                        put_centered(right_msg, right_center[0], right_center[1], 1.4, (0, 255, 255))
 
-                    # Show restart instructions centered
-                    restart_msg = "Press SPACE or ENTER to play again"
-                    (rw, rh), _ = cv2.getTextSize(restart_msg, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
-                    rx = w // 2 - rw // 2
-                    ry = h // 2 + 60
-                    cv2.putText(frame, restart_msg, (rx, ry), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+                        # Show restart instructions centered
+                        restart_msg = "Press SPACE or ENTER to play again"
+                        (rw, rh), _ = cv2.getTextSize(restart_msg, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
+                        rx = w // 2 - rw // 2
+                        ry = h // 2 + 60
+                        cv2.putText(frame, restart_msg, (rx, ry), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
 
             # FPS calc (use smoothed FPS) - calculate timing outside game logic
             now = time.time()
