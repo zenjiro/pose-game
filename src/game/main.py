@@ -64,9 +64,12 @@ def main() -> None:
                     center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
                 frame = cv2.hconcat([center, center])
 
+            # Run pose detection on a clean frame BEFORE drawing any UI overlays.
+            people = pose.process(frame)
+
             # Show title screen if game hasn't started
             if not game_state.game_started:
-                # Show title screen
+                # Show title screen (draw after detection to avoid occluding pose inputs)
                 cv2.putText(frame, "POSE GAME", (frame.shape[1]//2 - 150, frame.shape[0]//2 - 100), 
                            cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 255, 255), 5, cv2.LINE_AA)
                 cv2.putText(frame, "Avoid rocks with your head!", (frame.shape[1]//2 - 200, frame.shape[0]//2 - 20), 
@@ -79,8 +82,6 @@ def main() -> None:
                 # Only spawn new rocks if game is started and still active
                 if not game_state.game_over:
                     rock_mgr.maybe_spawn()
-
-            people = pose.process(frame)
             # Debug: log frame size and detected people / circle counts (throttled)
             if int(time.time()) % 3 == 0 and int(time.time() * 10) % 10 == 0:  # Every 3 seconds, once per second
                 try:
