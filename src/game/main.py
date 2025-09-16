@@ -1,6 +1,7 @@
 import argparse
 import time
 import os
+import sys
 import cv2
 
 # Optional: PIL for rendering Japanese text
@@ -9,6 +10,38 @@ try:
     PIL_AVAILABLE = True
 except Exception:
     PIL_AVAILABLE = False
+
+# Try to locate a Japanese-capable font per OS
+def find_default_jp_font() -> str | None:
+    candidates: list[str] = []
+    plat = sys.platform
+    if plat.startswith("win"):
+        candidates = [
+            r"C:\\Windows\\Fonts\\meiryo.ttc",
+            r"C:\\Windows\\Fonts\\YuGothM.ttc",
+            r"C:\\Windows\\Fonts\\msgothic.ttc",
+        ]
+    elif plat == "darwin":
+        candidates = [
+            "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc",
+            "/System/Library/Fonts/Hiragino Sans W6.ttc",
+            "/System/Library/Fonts/ヒラギノ角ゴ ProN W6.ttc",
+        ]
+    else:
+        # Linux
+        candidates = [
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf",
+            "/usr/share/fonts/opentype/ipafont-mincho/ipam.ttf",
+        ]
+    for p in candidates:
+        try:
+            if os.path.isfile(p):
+                return p
+        except Exception:
+            pass
+    return None
 
 from .camera import open_camera
 from .ui import select_camera_gui
@@ -23,6 +56,7 @@ def main() -> None:
     parser.add_argument("-c", "--camera", type=int, help="Camera index to open (if provided, skip selector)")
     parser.add_argument("--tasks-model", type=str, default="models/pose_landmarker_lite.task", help="Optional path to MediaPipe Tasks pose landmarker model file for multi-person detection")
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
+    # If not provided, we try to auto-detect a Japanese-capable font per OS
     parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
     args = parser.parse_args()
 
@@ -81,13 +115,16 @@ def main() -> None:
                 # Show title screen (draw after detection to avoid occluding pose inputs)
                 h, w = frame.shape[:2]
                 # Try to render Japanese via PIL if available and font provided
-                if PIL_AVAILABLE and args.jp_font and os.path.isfile(args.jp_font):
+                jp_font_path = args.jp_font
+                if jp_font_path is None:
+                    jp_font_path = find_default_jp_font()
+                if PIL_AVAILABLE and jp_font_path and os.path.isfile(jp_font_path):
                     img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                     draw = ImageDraw.Draw(img)
                     try:
-                        title_font = ImageFont.truetype(args.jp_font, size=int(h * 0.12))
-                        sub_font = ImageFont.truetype(args.jp_font, size=int(h * 0.045))
-                        hint_font = ImageFont.truetype(args.jp_font, size=int(h * 0.04))
+                        title_font = ImageFont.truetype(jp_font_path, size=int(h * 0.12))
+                        sub_font = ImageFont.truetype(jp_font_path, size=int(h * 0.045))
+                        hint_font = ImageFont.truetype(jp_font_path, size=int(h * 0.04))
                     except Exception:
                         title_font = sub_font = hint_font = None
                     # Text content (Japanese)

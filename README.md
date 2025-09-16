@@ -66,6 +66,25 @@ uv add --dev black ruff mypy
 uv run python -m game.main
 ```
 
+### 日本語タイトル表示（任意）
+- 日本語表示には Pillow と日本語フォントが必要です。
+- 依存に `pillow` を追加済みなので、環境にインストールされます。
+- OS に含まれる日本語フォント、または任意のフォントファイル（.ttf/.ttc/.otf）を指定してください。
+
+使用例:
+```
+# Windows の例（Meiryo）
+uv run python -m game.main --jp-font "C:\\Windows\\Fonts\\meiryo.ttc"
+
+# macOS の例（ヒラギノ角ゴ）
+uv run python -m game.main --jp-font "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc"
+
+# Linux の例（Noto CJK）
+uv run python -m game.main --jp-font "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"
+```
+
+- `--jp-font` を指定しない場合は英語のタイトルにフォールバックします。
+
 uv の詳細は https://docs.astral.sh/uv/ を参照してください。
 
 ---

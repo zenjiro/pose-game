@@ -8,6 +8,7 @@ dependencies = [
     "mediapipe",
     "numpy",
     "opencv-python",
+    "pillow",
 ]
 
 [build-system]
