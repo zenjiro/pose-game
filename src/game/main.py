@@ -3,6 +3,7 @@ import time
 import os
 import sys
 import cv2
+import numpy as np
 
 # Optional: PIL for rendering Japanese text
 try:
@@ -136,7 +137,16 @@ def main() -> None:
                     def draw_centered(text: str, y: int, font, color=(255,255,0)):
                         if font is None:
                             return
-                        tw, th = draw.textsize(text, font=font)
+                        # PIL.ImageDraw in newer versions uses textbbox for metrics
+                        try:
+                            bbox = draw.textbbox((0, 0), text, font=font)
+                            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+                        except Exception:
+                            # Fallback to legacy textsize if available
+                            try:
+                                tw, th = draw.textsize(text, font=font)  # type: ignore[attr-defined]
+                            except Exception:
+                                tw, th = 0, 0
                         x = w//2 - tw//2
                         draw.text((x, y), text, fill=color, font=font)
                     draw_centered(title, int(h*0.30), title_font, (255, 255, 0))
