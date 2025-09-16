@@ -55,6 +55,7 @@ class GameState:
     def __init__(self, num_players: int = 2):
         self.players = [PlayerState(i) for i in range(num_players)]
         self.game_over = False
+        self.game_started = False  # Track if game has been started
 
     def get_player(self, player_id: int) -> PlayerState:
         """Get player state by ID."""
@@ -84,11 +85,19 @@ class GameState:
         player = self.get_player(player_id)
         player.add_score(points)
 
+    def start_game(self) -> None:
+        """Start the game from title screen."""
+        self.game_started = True
+        self.game_over = False
+        for player in self.players:
+            player.reset()
+
     def reset(self) -> None:
-        """Reset the entire game state."""
+        """Reset the entire game state for restart."""
         for player in self.players:
             player.reset()
         self.game_over = False
+        self.game_started = True  # Keep game started when restarting
 
     def get_winner(self) -> int | None:
         """Get the winning player ID, or None if tie/no winner yet."""
