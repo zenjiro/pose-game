@@ -61,7 +61,17 @@ Files changed by agent edits should include a brief test or smoke-run verificati
 
 Next steps taken for this task
 - I created this `AGENTS.md` summary to help automated agents and contributors understand the repository and recommended work.
+- Step 7 completed: Implemented life calculation system with initial 3 lives, head hit damage (-1), invulnerability frames, and game over detection.
 
 Requirements coverage
 - User asked: initialize `AGENTS.md` for coding agents and create an English summary covering files and how to run — Completed.
+- Step 7 from plan.md: Life calculation (initial 3, head hit -1) — Completed.
+
+Recent implementation details for Step 7:
+- Added `src/game/player.py` with `PlayerState` and `GameState` classes to manage player lives, scores, and game state
+- Implemented invulnerability system (1 second after head hit) to prevent rapid life loss
+- Updated main game loop to use per-player head collision detection with life tracking
+- Enhanced UI to display both lives and scores with color coding (red when low/invulnerable, green when healthy)
+- Added game over detection and winner announcement when a player reaches 0 lives
+- Players start with 3 lives, lose 1 life per head hit (respecting invulnerability), and game ends when any player reaches 0 lives
 

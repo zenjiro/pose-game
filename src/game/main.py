@@ -7,6 +7,7 @@ from .ui import select_camera_gui
 from .pose import PoseEstimator
 from .render import draw_circles, put_fps, draw_rocks
 from .gameplay import RockManager
+from .player import GameState
 
 
 def main() -> None:
@@ -36,15 +37,16 @@ def main() -> None:
 
     pose = PoseEstimator(max_people=2, tasks_model=args.tasks_model)
     rock_mgr = RockManager(width=1280, height=720)
+    game_state = GameState(num_players=2)
 
     prev = time.time()
     fps = 0.0
-    # Persistent per-player scores for the current session
-    scores = [0, 0]
 
     try:
         while True:
-            rock_mgr.maybe_spawn()
+            # Only spawn new rocks if game is still active
+            if not game_state.game_over:
+                rock_mgr.maybe_spawn()
             ok, frame = cap.read()
             if not ok or frame is None:
                 continue
@@ -66,29 +68,39 @@ def main() -> None:
                 frame = cv2.hconcat([center, center])
 
             people = pose.process(frame)
-            # Debug: log frame size and detected people / circle counts
-            try:
-                h, w = frame.shape[:2]
-            except Exception:
-                h = w = None
-            print(f"[DEBUG] frame size: {w}x{h}")
-            print(f"[DEBUG] PoseEstimator returned {len(people)} people")
-            for pi, circles in enumerate(people[:4]):
-                head_count = len(circles.get("head", []))
-                hands_count = len(circles.get("hands", []))
-                feet_count = len(circles.get("feet", []))
-                print(f"[DEBUG] person[{pi}] head={head_count} hands={hands_count} feet={feet_count}")
-            # Draw detected people and collect head circles for collision checks
-            head_circles = []
+            # Debug: log frame size and detected people / circle counts (throttled)
+            if int(time.time()) % 3 == 0 and int(time.time() * 10) % 10 == 0:  # Every 3 seconds, once per second
+                try:
+                    h, w = frame.shape[:2]
+                except Exception:
+                    h = w = None
+                print(f"[DEBUG] frame size: {w}x{h}")
+                print(f"[DEBUG] PoseEstimator returned {len(people)} people")
+                for pi, circles in enumerate(people[:4]):
+                    head_count = len(circles.get("head", []))
+                    hands_count = len(circles.get("hands", []))
+                    feet_count = len(circles.get("feet", []))
+                    print(f"[DEBUG] person[{pi}] head={head_count} hands={hands_count} feet={feet_count}")
+            # Draw detected people and collect head circles per player for collision checks
+            head_hits_display = []
             for i, circles in enumerate(people[:2]):
                 draw_circles(frame, circles, color_shift=(0 if i == 0 else 128))
-                for c in circles.get("head", []):
-                    head_circles.append((c.x, c.y, c.r))
+                
+                # Check head collisions for this specific player
+                head_circles = [(c.x, c.y, c.r) for c in circles.get("head", [])]
+                if head_circles:
+                    hits = rock_mgr.handle_head_collisions(head_circles)
+                    if hits > 0:
+                        # Try to damage the player (respects invulnerability)
+                        damage_taken = game_state.handle_head_hit(i)
+                        if damage_taken:
+                            head_hits_display.append(f"P{i+1} LIFE LOST!")
+                        else:
+                            head_hits_display.append(f"P{i+1} INVULNERABLE")
 
-            # Check head-rock collisions (step 4)
-            hits = rock_mgr.handle_head_collisions(head_circles)
-            if hits > 0:
-                cv2.putText(frame, f"HEAD HIT x{hits}", (60, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (20, 20, 230), 3, cv2.LINE_AA)
+            # Display head hit messages
+            for idx, msg in enumerate(head_hits_display):
+                cv2.putText(frame, msg, (60, 60 + idx * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (20, 20, 230), 3, cv2.LINE_AA)
 
             # Collect hand circles and check hand-rock collisions (step 5)
             hand_circles = []
@@ -108,7 +120,7 @@ def main() -> None:
                     events = rock_mgr.handle_collisions(kind="feet", circles=feet)
                     hits = events.get("hits", 0)
                     if hits:
-                        scores[i] += hits
+                        game_state.handle_foot_hit(i, hits)
 
             # Update and draw rocks
             now = time.time()
@@ -117,9 +129,38 @@ def main() -> None:
             rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
             draw_rocks(frame, rock_mgr.rocks)
 
-            # Draw scores for players (top-left)
-            cv2.putText(frame, f"P1 Score: {scores[0]}", (12, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 220, 220), 2, cv2.LINE_AA)
-            cv2.putText(frame, f"P2 Score: {scores[1]}", (12, 82), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 220, 220), 2, cv2.LINE_AA)
+            # Draw scores and lives for players (top-left, below FPS)
+            for i in range(2):
+                player = game_state.get_player(i)
+                y_pos = 80 + i * 60
+                
+                # Score
+                cv2.putText(frame, f"P{i+1} Score: {player.score}", (12, y_pos), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 220, 220), 2, cv2.LINE_AA)
+                
+                # Lives with color coding
+                lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
+                if player.is_game_over:
+                    lives_text = "GAME OVER"
+                    lives_color = (50, 50, 255)
+                else:
+                    lives_text = f"Lives: {player.lives}"
+                    # Flash red if invulnerable
+                    if player.is_invulnerable():
+                        lives_color = (50, 50, 255)
+                
+                cv2.putText(frame, lives_text, (12, y_pos + 25), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+            
+            # Display game over message if game ended
+            if game_state.game_over:
+                winner = game_state.get_winner()
+                if winner is not None:
+                    msg = f"PLAYER {winner + 1} WINS!"
+                else:
+                    msg = "TIE GAME!"
+                cv2.putText(frame, msg, (frame.shape[1]//2 - 200, frame.shape[0]//2), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 255, 255), 4, cv2.LINE_AA)
 
             # FPS calc (use smoothed FPS)
             if dt > 0:
