@@ -2,6 +2,7 @@ import argparse
 import time
 import os
 import sys
+import math
 import cv2
 import numpy as np
 
@@ -216,6 +217,19 @@ def main() -> None:
 
             # Only run collision detection and game logic if game has started
             if game_state.game_started:
+                game_state.update()  # Check for time limit
+
+                # Display timer
+                remaining_time = game_state.get_remaining_time()
+                display_time = math.ceil(remaining_time)
+                minutes = int(display_time) // 60
+                seconds = int(display_time) % 60
+                timer_text = f"{minutes}:{seconds:02d}"
+                (tw, th), _ = cv2.getTextSize(timer_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
+                tx = w // 2 - tw // 2
+                ty = 40
+                cv2.putText(frame, timer_text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+
                 # Collect head circles per player for collision checks
                 head_hits_display = []
                 for i in range(2):
@@ -381,7 +395,7 @@ def main() -> None:
                             right_msg = "プレイヤー2 の かち"
                         else:
                             left_msg = "ひきわけ"
-                            right_msg = None
+                            right_msg = "ひきわけ"
                         
                         restart_msg = "スペースキーかエンターキーでもういちど"
 
@@ -402,8 +416,6 @@ def main() -> None:
                         draw_centered_gameover(left_msg, w // 4, y_pos, msg_font)
                         if right_msg:
                             draw_centered_gameover(right_msg, 3 * w // 4, y_pos, msg_font)
-                        else: # Tie
-                            draw_centered_gameover(left_msg, w // 2, y_pos, msg_font)
 
                         # Centered restart message
                         draw_centered_gameover(restart_msg, w // 2, int(h*0.62), restart_font, (100, 255, 100))
