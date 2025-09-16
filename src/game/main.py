@@ -242,9 +242,9 @@ def main() -> None:
                             # Try to damage the player (respects invulnerability)
                             damage_taken = game_state.handle_head_hit(i)
                             if damage_taken:
-                                head_hits_display.append(f"P{i+1} LIFE LOST!")
+                                head_hits_display.append(f"LIFE LOST!")
                             else:
-                                head_hits_display.append(f"P{i+1} INVULNERABLE")
+                                head_hits_display.append(f"INVULNERABLE")
 
                 # Display head hit messages
                 for idx, msg in enumerate(head_hits_display):
@@ -311,7 +311,7 @@ def main() -> None:
                     name_color = P1_COLOR if i == 0 else P2_COLOR
                     
                     if use_jp_font and draw and score_font and lives_font:
-                        score_text = f"P{i+1} スコア: {player.score}"
+                        score_text = f"スコア: {player.score}"
                         lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
                         if player.is_game_over:
                             lives_text = "ゲームオーバー"
@@ -346,7 +346,7 @@ def main() -> None:
                             draw.text((w - margin - lives_w, y_lives), lives_text, fill=lives_color_pil, font=lives_font)
 
                     else: # Fallback to ASCII
-                        score_text = f"P{i+1} Score: {player.score}"
+                        score_text = f"Score: {player.score}"
                         lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
                         if player.is_game_over:
                             lives_text = "GAME OVER"
@@ -388,11 +388,11 @@ def main() -> None:
                             msg_font = restart_font = None
 
                         if winner == 0:
-                            left_msg = "プレイヤー1 の かち"
-                            right_msg = "プレイヤー2 の まけ"
+                            left_msg = "かち！"
+                            right_msg = "まけ…"
                         elif winner == 1:
-                            left_msg = "プレイヤー1 の まけ"
-                            right_msg = "プレイヤー2 の かち"
+                            left_msg = "まけ…"
+                            right_msg = "かち！"
                         else:
                             left_msg = "ひきわけ"
                             right_msg = "ひきわけ"
@@ -426,11 +426,11 @@ def main() -> None:
                         left_center = (w // 4, h // 2)
                         right_center = (3 * w // 4, h // 2)
                         if winner == 0:
-                            left_msg = "PLAYER 1 WINS!"
-                            right_msg = "PLAYER 2 LOSES"
+                            left_msg = "WIN!"
+                            right_msg = "LOSE"
                         elif winner == 1:
-                            left_msg = "PLAYER 1 LOSES"
-                            right_msg = "PLAYER 2 WINS!"
+                            left_msg = "LOSE"
+                            right_msg = "WIN!"
                         else:
                             left_msg = right_msg = "TIE"
 
