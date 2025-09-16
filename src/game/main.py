@@ -265,37 +265,96 @@ def main() -> None:
                 # Draw scores and lives for players (P1 left, P2 right)
                 h, w = frame.shape[:2]
                 margin = 12
+
+                jp_font_path = args.jp_font
+                if jp_font_path is None:
+                    jp_font_path = find_default_jp_font()
+                use_jp_font = PIL_AVAILABLE and jp_font_path and os.path.isfile(jp_font_path)
+
+                img_pil = None
+                draw = None
+                score_font = None
+                lives_font = None
+
+                if use_jp_font:
+                    img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                    draw = ImageDraw.Draw(img_pil)
+                    try:
+                        score_font = ImageFont.truetype(jp_font_path, size=int(h * 0.04))
+                        lives_font = ImageFont.truetype(jp_font_path, size=int(h * 0.035))
+                    except Exception:
+                        use_jp_font = False # Fallback to ASCII if font loading fails
+                
                 for i in range(2):
                     player = game_state.get_player(i)
                     # Y positions for this player's lines
                     y_score = 80
-                    y_lives = y_score + 25
+                    y_lives = y_score + 30
 
                     # Colors for text: use player landmark colors for labels
                     P1_COLOR = (0, 0, 255)  # red (BGR)
                     P2_COLOR = (255, 0, 0)  # blue (BGR)
                     name_color = P1_COLOR if i == 0 else P2_COLOR
-
-                    score_text = f"P{i+1} Score: {player.score}"
-                    lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
-                    if player.is_game_over:
-                        lives_text = "GAME OVER"
-                        lives_color = (50, 50, 255)
-                    else:
-                        lives_text = f"Lives: {player.lives}"
-                        if player.is_invulnerable():
+                    
+                    if use_jp_font and draw and score_font and lives_font:
+                        score_text = f"P{i+1} スコア: {player.score}"
+                        lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
+                        if player.is_game_over:
+                            lives_text = "ゲームオーバー"
                             lives_color = (50, 50, 255)
+                        else:
+                            lives_text = f"ライフ: {player.lives}"
+                            if player.is_invulnerable():
+                                lives_color = (50, 50, 255)
+                        
+                        # PIL uses RGB for color
+                        name_color_pil = (name_color[2], name_color[1], name_color[0])
+                        lives_color_pil = (lives_color[0], lives_color[1], lives_color[2])
 
-                    if i == 0:
-                        # Player 1: left side
-                        cv2.putText(frame, score_text, (margin, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
-                        cv2.putText(frame, lives_text, (margin, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
-                    else:
-                        # Player 2: right side (right-aligned)
-                        (score_w, score_h), _ = cv2.getTextSize(score_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                        (lives_w, lives_h), _ = cv2.getTextSize(lives_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                        cv2.putText(frame, score_text, (w - margin - score_w, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
-                        cv2.putText(frame, lives_text, (w - margin - lives_w, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+                        if i == 0:
+                            # Player 1: left side
+                            draw.text((margin, y_score), score_text, fill=name_color_pil, font=score_font)
+                            draw.text((margin, y_lives), lives_text, fill=lives_color_pil, font=lives_font)
+                        else:
+                            # Player 2: right side (right-aligned)
+                            try:
+                                bbox = draw.textbbox((0, 0), score_text, font=score_font)
+                                score_w = bbox[2] - bbox[0]
+                            except Exception:
+                                score_w = 100 # fallback
+                            try:
+                                bbox = draw.textbbox((0, 0), lives_text, font=lives_font)
+                                lives_w = bbox[2] - bbox[0]
+                            except Exception:
+                                lives_w = 100 # fallback
+
+                            draw.text((w - margin - score_w, y_score), score_text, fill=name_color_pil, font=score_font)
+                            draw.text((w - margin - lives_w, y_lives), lives_text, fill=lives_color_pil, font=lives_font)
+
+                    else: # Fallback to ASCII
+                        score_text = f"P{i+1} Score: {player.score}"
+                        lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
+                        if player.is_game_over:
+                            lives_text = "GAME OVER"
+                            lives_color = (50, 50, 255)
+                        else:
+                            lives_text = f"Lives: {player.lives}"
+                            if player.is_invulnerable():
+                                lives_color = (50, 50, 255)
+
+                        if i == 0:
+                            # Player 1: left side
+                            cv2.putText(frame, score_text, (margin, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
+                            cv2.putText(frame, lives_text, (margin, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+                        else:
+                            # Player 2: right side (right-aligned)
+                            (score_w, _), _ = cv2.getTextSize(score_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                            (lives_w, _), _ = cv2.getTextSize(lives_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+                            cv2.putText(frame, score_text, (w - margin - score_w, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
+                            cv2.putText(frame, lives_text, (w - margin - lives_w, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+
+                if use_jp_font and img_pil:
+                    frame = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
                 
                 # Display game over messages side-by-side
                 if game_state.game_over:
