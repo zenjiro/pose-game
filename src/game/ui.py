@@ -42,7 +42,6 @@ def _render_menu(
     line_h = 36
     # Reserve right area for preview (~40% width)
     preview_w = int(w * 0.4)
-    list_width = w - preview_w - 100  # 60 left margin + 40 padding
     max_visible = max(1, (h - top - 40) // line_h)
 
     # Draw a faint separator for preview area

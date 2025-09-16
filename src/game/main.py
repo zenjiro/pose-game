@@ -5,6 +5,13 @@ import sys
 import cv2
 import numpy as np
 
+from .camera import open_camera
+from .ui import select_camera_gui
+from .pose import PoseEstimator
+from .render import draw_circles, put_fps, draw_rocks
+from .gameplay import RockManager
+from .player import GameState
+
 # Optional: PIL for rendering Japanese text
 try:
     from PIL import Image, ImageDraw, ImageFont  # type: ignore
@@ -44,13 +51,6 @@ def find_default_jp_font() -> str | None:
             pass
     return None
 
-from .camera import open_camera
-from .ui import select_camera_gui
-from .pose import PoseEstimator
-from .render import draw_circles, put_fps, draw_rocks
-from .gameplay import RockManager
-from .player import GameState
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -85,6 +85,7 @@ def main() -> None:
 
     prev = time.time()
     fps = 0.0
+    dt = 0.0
 
     try:
         while True:
@@ -130,9 +131,9 @@ def main() -> None:
                         title_font = sub_font = hint_font = None
                     # Text content (Japanese)
                     title = "ポーズゲーム"
-                    line1 = "頭で岩を避けよう！"
-                    line2 = "足で岩を蹴ってスコアを稼ごう！"
-                    hint = "スペース または エンター で開始"
+                    line1 = "あたまで いわを よけよう！"
+                    line2 = "あしで いわを けって スコアを かせごう！"
+                    hint = "スペース または エンター で スタート"
                     # Helper to center text
                     def draw_centered(text: str, y: int, font, color=(255,255,0)):
                         if font is None:
@@ -140,13 +141,13 @@ def main() -> None:
                         # PIL.ImageDraw in newer versions uses textbbox for metrics
                         try:
                             bbox = draw.textbbox((0, 0), text, font=font)
-                            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+                            tw, _h = bbox[2] - bbox[0], bbox[3] - bbox[1]
                         except Exception:
                             # Fallback to legacy textsize if available
                             try:
-                                tw, th = draw.textsize(text, font=font)  # type: ignore[attr-defined]
+                                tw, _h = draw.textsize(text, font=font)  # type: ignore[attr-defined]
                             except Exception:
-                                tw, th = 0, 0
+                                tw, _h = 0, 0
                         x = w//2 - tw//2
                         draw.text((x, y), text, fill=color, font=font)
                     draw_centered(title, int(h*0.30), title_font, (255, 255, 0))

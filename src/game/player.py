@@ -36,7 +36,6 @@ class PlayerState:
         """Add points to score and award a life at thresholds (10, 20, 30, ...)."""
         if self.is_game_over:
             return
-        prev_score = self.score
         self.score += points
         # Award one life per threshold crossed; supports points > 1
         while self.score >= self.next_life_threshold:

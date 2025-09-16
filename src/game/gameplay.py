@@ -6,7 +6,6 @@ from typing import List, Tuple
 
 from .entities import Rock
 from .collision import circles_overlap
-import time
 
 
 class RockManager:
