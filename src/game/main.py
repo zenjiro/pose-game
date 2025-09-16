@@ -96,15 +96,43 @@ def main() -> None:
                     feet_count = len(circles.get("feet", []))
                     print(f"[DEBUG] person[{pi}] head={head_count} hands={hands_count} feet={feet_count}")
 
-            # Always draw pose landmarks regardless of game state
-            for i, circles in enumerate(people[:2]):
-                draw_circles(frame, circles, color_shift=(0 if i == 0 else 128))
+            # Map detected people to players by head X position
+            h, w = frame.shape[:2]
+            def _head_x(p: dict) -> int | None:
+                hs = p.get("head", [])
+                return hs[0].x if hs else None
+            players = [ {"head": [], "hands": [], "feet": []}, {"head": [], "hands": [], "feet": []} ]
+            if len(people) >= 2:
+                # Prefer two with head landmarks; sort by head X (left->right)
+                idx_x = [(i, _head_x(p)) for i, p in enumerate(people)]
+                with_head = [(i, x) for i, x in idx_x if x is not None]
+                if len(with_head) >= 2:
+                    with_head.sort(key=lambda t: t[1])
+                    left_idx = with_head[0][0]
+                    right_idx = with_head[-1][0]
+                else:
+                    # Fallback to first two detections
+                    left_idx, right_idx = 0, 1
+                players[0] = people[left_idx]
+                players[1] = people[right_idx]
+            elif len(people) == 1:
+                x = _head_x(people[0])
+                if x is not None and x < w // 2:
+                    players[0] = people[0]
+                else:
+                    players[1] = people[0]
+            # Always draw pose landmarks regardless of game state (uniform per-player color)
+            P1_COLOR = (0, 0, 255)  # Red (BGR)
+            P2_COLOR = (255, 0, 0)  # Blue (BGR)
+            draw_circles(frame, players[0], color=P1_COLOR)
+            draw_circles(frame, players[1], color=P2_COLOR)
 
             # Only run collision detection and game logic if game has started
             if game_state.game_started:
                 # Collect head circles per player for collision checks
                 head_hits_display = []
-                for i, circles in enumerate(people[:2]):
+                for i in range(2):
+                    circles = players[i]
                     # Check head collisions for this specific player
                     head_circles = [(c.x, c.y, c.r) for c in circles.get("head", [])]
                     if head_circles:
@@ -124,7 +152,7 @@ def main() -> None:
                 # Only run collision detection and game logic when game is active
                 # Collect hand circles and check hand-rock collisions (step 5)
                 hand_circles = []
-                for circles in people[:2]:
+                for circles in players:
                     for c in circles.get("hands", []):
                         hand_circles.append((c.x, c.y, c.r))
                 hand_events = rock_mgr.handle_collisions(kind="hands", circles=hand_circles)
@@ -134,7 +162,8 @@ def main() -> None:
 
                 # Collect foot circles per player and check foot-rock collisions (step 6)
                 # Use per-player scoring: foot hit => +1
-                for i, circles in enumerate(people[:2]):
+                for i in range(2):
+                    circles = players[i]
                     feet = [(c.x, c.y, c.r) for c in circles.get("feet", [])]
                     if feet:
                         events = rock_mgr.handle_collisions(kind="feet", circles=feet)
@@ -146,43 +175,71 @@ def main() -> None:
                 rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
                 draw_rocks(frame, rock_mgr.rocks)
 
-                # Draw scores and lives for players (top-left, below FPS)
+                # Draw scores and lives for players (P1 left, P2 right)
+                h, w = frame.shape[:2]
+                margin = 12
                 for i in range(2):
                     player = game_state.get_player(i)
-                    y_pos = 80 + i * 60
-                    
-                    # Score
-                    cv2.putText(frame, f"P{i+1} Score: {player.score}", (12, y_pos), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 220, 220), 2, cv2.LINE_AA)
-                    
-                    # Lives with color coding
+                    # Y positions for this player's lines
+                    y_score = 80
+                    y_lives = y_score + 25
+
+                    # Colors for text: use player landmark colors for labels
+                    P1_COLOR = (0, 0, 255)  # red (BGR)
+                    P2_COLOR = (255, 0, 0)  # blue (BGR)
+                    name_color = P1_COLOR if i == 0 else P2_COLOR
+
+                    score_text = f"P{i+1} Score: {player.score}"
                     lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
                     if player.is_game_over:
                         lives_text = "GAME OVER"
                         lives_color = (50, 50, 255)
                     else:
                         lives_text = f"Lives: {player.lives}"
-                        # Flash red if invulnerable
                         if player.is_invulnerable():
                             lives_color = (50, 50, 255)
-                    
-                    cv2.putText(frame, lives_text, (12, y_pos + 25), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+
+                    if i == 0:
+                        # Player 1: left side
+                        cv2.putText(frame, score_text, (margin, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
+                        cv2.putText(frame, lives_text, (margin, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
+                    else:
+                        # Player 2: right side (right-aligned)
+                        (score_w, score_h), _ = cv2.getTextSize(score_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                        (lives_w, lives_h), _ = cv2.getTextSize(lives_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+                        cv2.putText(frame, score_text, (w - margin - score_w, y_score), cv2.FONT_HERSHEY_SIMPLEX, 0.7, name_color, 2, cv2.LINE_AA)
+                        cv2.putText(frame, lives_text, (w - margin - lives_w, y_lives), cv2.FONT_HERSHEY_SIMPLEX, 0.6, lives_color, 2, cv2.LINE_AA)
                 
-                # Display game over message if game ended
+                # Display game over messages side-by-side
                 if game_state.game_over:
                     winner = game_state.get_winner()
-                    if winner is not None:
-                        msg = f"PLAYER {winner + 1} WINS!"
+                    left_center = (w // 4, h // 2)
+                    right_center = (3 * w // 4, h // 2)
+                    if winner == 0:
+                        left_msg = "PLAYER 1 WINS!"
+                        right_msg = "PLAYER 2 LOSES"
+                    elif winner == 1:
+                        left_msg = "PLAYER 1 LOSES"
+                        right_msg = "PLAYER 2 WINS!"
                     else:
-                        msg = "TIE GAME!"
-                    cv2.putText(frame, msg, (frame.shape[1]//2 - 200, frame.shape[0]//2), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 255, 255), 4, cv2.LINE_AA)
-                    
-                    # Show restart instructions
+                        left_msg = right_msg = "TIE"
+
+                    # Helper to center text at a point
+                    def put_centered(text: str, center_x: int, center_y: int, scale: float, color: tuple[int,int,int]):
+                        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, 4)
+                        x = center_x - tw // 2
+                        y = center_y + th // 2
+                        cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, 4, cv2.LINE_AA)
+
+                    put_centered(left_msg, left_center[0], left_center[1], 1.4, (0, 255, 255))
+                    put_centered(right_msg, right_center[0], right_center[1], 1.4, (0, 255, 255))
+
+                    # Show restart instructions centered
                     restart_msg = "Press SPACE or ENTER to play again"
-                    cv2.putText(frame, restart_msg, (frame.shape[1]//2 - 220, frame.shape[0]//2 + 60), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+                    (rw, rh), _ = cv2.getTextSize(restart_msg, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
+                    rx = w // 2 - rw // 2
+                    ry = h // 2 + 60
+                    cv2.putText(frame, restart_msg, (rx, ry), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
 
             # FPS calc (use smoothed FPS) - calculate timing outside game logic
             now = time.time()

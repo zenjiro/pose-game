@@ -9,9 +9,10 @@ import numpy as np
 from .pose import Circle
 
 
-def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift: int = 0) -> None:
+def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift: int = 0, color: tuple[int, int, int] | None = None) -> None:
     """Overlay head/hands/feet circles on the frame in-place.
-    color_shift can be used to differentiate players (e.g., +128 for player 2 hues).
+    - If `color` is provided, use it for all groups (uniform per-player color).
+    - Otherwise, use per-group base colors and optional color_shift to vary hues.
     """
     base_colors = {
         "head": (0, 200, 255),   # orange-ish
@@ -25,7 +26,7 @@ def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift
         draw_circles._debug_printed = False
     if not draw_circles._debug_printed:
         try:
-            print(f"[draw_circles] groups={{k: len(v) for k,v in groups.items()}} color_shift={color_shift}")
+            print(f"[draw_circles] groups={{k: len(v) for k,v in groups.items()}} color_shift={color_shift} color={color}")
             for k, v in groups.items():
                 if v:
                     print(f"[draw_circles] first {k} = ({v[0].x},{v[0].y},{v[0].r})")
@@ -34,11 +35,14 @@ def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift
         draw_circles._debug_printed = True
 
     for key, circles in groups.items():
-        base = base_colors.get(key, (255, 255, 255))
-        color = tuple(int((c + color_shift) % 256) for c in base)
+        if color is not None:
+            use_color = color
+        else:
+            base = base_colors.get(key, (255, 255, 255))
+            use_color = tuple(int((c + color_shift) % 256) for c in base)
         for c in circles:
             # Outline-only drawing (restore original behavior)
-            cv2.circle(frame, (int(c.x), int(c.y)), int(c.r), color, thickness, cv2.LINE_AA)
+            cv2.circle(frame, (int(c.x), int(c.y)), int(c.r), use_color, thickness, cv2.LINE_AA)
 
 
 def put_fps(frame: np.ndarray, fps: float) -> None:
