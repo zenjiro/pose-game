@@ -9,7 +9,7 @@ from .collision import circles_overlap
 
 
 class RockManager:
-    def __init__(self, width: int, height: int) -> None:
+    def __init__(self, width: int, height: int, audio_manager=None) -> None:
         self.width = width
         self.height = height
         self.rocks: List[Rock] = []
@@ -19,6 +19,7 @@ class RockManager:
         self.max_radius = 36
         self.speed_min = 180.0
         self.speed_max = 360.0
+        self.audio_manager = audio_manager
 
     def maybe_spawn(self) -> None:
         now = time.time()
@@ -33,6 +34,10 @@ class RockManager:
         vy = random.uniform(self.speed_min, self.speed_max)
         color = (80, 80, 80)
         self.rocks.append(Rock(x=x, y=y, vx=vx, vy=vy, r=r, color=color))
+        
+        # Play rock drop sound
+        if self.audio_manager:
+            self.audio_manager.play_rock_drop()
 
     def update(self, dt: float) -> None:
         now = time.time()

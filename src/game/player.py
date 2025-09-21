@@ -59,13 +59,14 @@ class PlayerState:
 class GameState:
     """Manages the overall game state and both players."""
     
-    def __init__(self, num_players: int = 2, time_limit: int = 60):
+    def __init__(self, num_players: int = 2, time_limit: int = 60, audio_manager=None):
         self.players = [PlayerState(i) for i in range(num_players)]
         self.game_over = False
         self.game_started = False  # Track if game has been started
         self.time_limit = time_limit
         self.start_time = 0.0
         self.game_over_time = 0.0
+        self.audio_manager = audio_manager
 
     def get_player(self, player_id: int) -> PlayerState:
         """Get player state by ID."""
@@ -136,6 +137,9 @@ class GameState:
             self.game_over = True
             elapsed_time = time.time() - self.start_time
             self.game_over_time = max(0, self.time_limit - elapsed_time)
+            # (f) finish the game
+            if self.audio_manager:
+                self.audio_manager.play_game_over()
 
     def get_remaining_time(self) -> float:
         if not self.game_started:

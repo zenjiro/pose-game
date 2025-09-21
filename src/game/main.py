@@ -12,6 +12,7 @@ from .pose import PoseEstimator
 from .render import draw_circles, put_fps, draw_rocks
 from .gameplay import RockManager
 from .player import GameState
+from .audio import AudioManager
 
 # Optional: PIL for rendering Japanese text
 try:
@@ -98,8 +99,9 @@ def main() -> None:
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     pose = PoseEstimator(max_people=2, tasks_model=args.tasks_model)
-    rock_mgr = RockManager(width=1280, height=720)
-    game_state = GameState(num_players=2)
+    audio_mgr = AudioManager()
+    rock_mgr = RockManager(width=1280, height=720, audio_manager=audio_mgr)
+    game_state = GameState(num_players=2, audio_manager=audio_mgr)
 
     prev = time.time()
     fps = 0.0
@@ -251,6 +253,10 @@ def main() -> None:
                 tx = w // 2 - tw // 2
                 ty = 40
                 putText_with_outline(frame, timer_text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+                
+                # (e) left time is 10 seconds (hurry alarm)
+                if remaining_time <= 10 and remaining_time > 0:
+                    audio_mgr.play_hurry_alarm()
 
                 # Collect head circles per player for collision checks
                 head_hits_display = []
@@ -265,6 +271,7 @@ def main() -> None:
                             damage_taken = game_state.handle_head_hit(i)
                             if damage_taken:
                                 head_hits_display.append("LIFE LOST!")
+                                audio_mgr.play_head_hit()  # (b) hit a rock on the head (bad)
                             else:
                                 head_hits_display.append("INVULNERABLE")
 
@@ -282,6 +289,7 @@ def main() -> None:
                 hand_hits = hand_events.get("hits", 0)
                 if hand_hits > 0:
                     putText_with_outline(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3)
+                    audio_mgr.play_hand_hit()  # (c) hit a rock on the hands (a bit good)
 
                 # Collect foot circles per player and check foot-rock collisions (step 6)
                 # Use per-player scoring: foot hit => +1
@@ -293,6 +301,7 @@ def main() -> None:
                         hits = events.get("hits", 0)
                         if hits:
                             game_state.handle_foot_hit(i, hits)
+                            audio_mgr.play_foot_hit()  # (d) hit a rock on the foots (very good)
 
                 # Update and draw rocks
                 rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
@@ -489,6 +498,7 @@ def main() -> None:
             elif not game_state.game_started and (key == 32 or key == 13):  # Space (32) or Enter (13)
                 # Start game from title screen
                 game_state.start_game()
+                audio_mgr.play_game_start()  # (a) start new game
                 print("[INFO] Game started!")
             elif game_state.game_over and (key == 32 or key == 13):  # Space (32) or Enter (13)
                 # Reset game state for new game

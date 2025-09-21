@@ -62,6 +62,7 @@ Files changed by agent edits should include a brief test or smoke-run verificati
 Next steps taken for this task
 - I created this `AGENTS.md` summary to help automated agents and contributors understand the repository and recommended work.
 - Step 7 completed: Implemented life calculation system with initial 3 lives, head hit damage (-1), invulnerability frames, and game over detection.
+- Audio system completed: Integrated arcade-based audio with 6 sound events and OpenGameArt.org compatibility.
 
 Requirements coverage
 - User asked: initialize `AGENTS.md` for coding agents and create an English summary covering files and how to run — Completed.
@@ -74,4 +75,13 @@ Recent implementation details for Step 7:
 - Enhanced UI to display both lives and scores with color coding (red when low/invulnerable, green when healthy)
 - Added game over detection and winner announcement when a player reaches 0 lives
 - Players start with 3 lives, lose 1 life per head hit (respecting invulnerability), and game ends when any player reaches 0 lives
+
+Audio system implementation details:
+- Added `src/game/audio.py` with `AudioManager` class using arcade library for sound playback
+- Integrated 7 sound events: (a) game start, (b) head hit (bad), (c) hand hit (good), (d) foot hit (very good), (e) hurry alarm (≤10s), (f) game over, (g) rock drop
+- Created `sounds/` directory with placeholder files and detailed README.md for OpenGameArt.org sourcing
+- Sound triggers: throttled hurry alarm (every 2s), collision-based hit sounds, state-change sounds, rock spawn feedback
+- License compatibility: CC-BY, OGA-BY, CC0, CC-BY-SA with attribution system in CREDITS.md
+- Graceful fallback: audio system continues working even if sound files are missing or invalid
+- Rock drop sound: subtle audio feedback when new rocks spawn (low volume to avoid spam)
 
