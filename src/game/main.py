@@ -6,8 +6,7 @@ import math
 import cv2
 import numpy as np
 
-from .camera import open_camera
-from .ui import select_camera_gui
+from .camera import open_camera, list_available_cameras
 from .pose import PoseEstimator
 from .render import draw_circles, put_fps, draw_rocks
 from .gameplay import RockManager
@@ -80,19 +79,50 @@ def main() -> None:
     parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
     args = parser.parse_args()
 
-    # Choose camera: use CLI arg if provided, otherwise use GUI selector
-    if args.camera is not None:
-        idx = int(args.camera)
-    else:
-        idx = select_camera_gui(max_index=5, width=1280, height=720)
-        if idx is None:
-            print("Canceled camera selection.")
-            return
+    # Pre-scan available cameras and set up camera cycling list
+    avail_infos = list_available_cameras(max_index=5, width=1280, height=720)
+    camera_indices = [info.get("index", 0) for info in avail_infos]
+    if not camera_indices:
+        # Fallback: if probing found nothing, just try index 0
+        camera_indices = [0]
 
-    cap = open_camera(idx, width=1280, height=720)
+    # Determine initial camera index
+    if args.camera is not None:
+        start_idx = int(args.camera)
+        # Ensure the specified index participates in cycling order
+        if start_idx not in camera_indices:
+            camera_indices = [start_idx] + [i for i in camera_indices if i != start_idx]
+    else:
+        start_idx = camera_indices[0]
+
+    # Track current position in the cycle list
+    try:
+        current_cam_pos = camera_indices.index(start_idx)
+    except ValueError:
+        current_cam_pos = 0
+        start_idx = camera_indices[current_cam_pos]
+
+    def open_camera_at(pos: int):
+        idx_local = camera_indices[pos % len(camera_indices)]
+        cap_local = open_camera(idx_local, width=1280, height=720)
+        return idx_local, cap_local
+
+    idx, cap = open_camera_at(current_cam_pos)
     if cap is None or not cap.isOpened():
-        print(f"Error: Could not open selected camera (index={idx}).")
-        return
+        print(f"Error: Could not open initial camera (index={idx}). Trying other cameras...")
+        opened = False
+        for shift in range(1, len(camera_indices)):
+            try_pos = (current_cam_pos + shift) % len(camera_indices)
+            idx_try, cap_try = open_camera_at(try_pos)
+            if cap_try is not None and cap_try.isOpened():
+                idx, cap = idx_try, cap_try
+                current_cam_pos = try_pos
+                opened = True
+                print(f"Switched to camera index {idx}.")
+                break
+        if not opened:
+            print("Error: Could not open any camera. Exiting.")
+            return
 
     window_name = "Pose Game"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
@@ -495,6 +525,25 @@ def main() -> None:
             key = cv2.waitKey(1) & 0xFF
             if key == 27:  # Esc
                 break
+            elif key in (ord('c'), ord('C')):
+                # Cycle to the next camera
+                try:
+                    next_pos = (current_cam_pos + 1) % len(camera_indices)
+                    idx_next, cap_next = open_camera_at(next_pos)
+                    if cap_next is not None and cap_next.isOpened():
+                        # Swap camera safely
+                        try:
+                            cap.release()
+                        except Exception:
+                            pass
+                        cap = cap_next
+                        idx = idx_next
+                        current_cam_pos = next_pos
+                        print(f"[INFO] Switched to camera index {idx} (position {current_cam_pos+1}/{len(camera_indices)}).")
+                    else:
+                        print(f"[WARN] Could not open camera at index {camera_indices[next_pos]}. Staying on {idx}.")
+                except Exception as e:
+                    print(f"[ERROR] Camera switch failed: {e}")
             elif not game_state.game_started and (key == 32 or key == 13):  # Space (32) or Enter (13)
                 # Start game from title screen
                 game_state.start_game()
