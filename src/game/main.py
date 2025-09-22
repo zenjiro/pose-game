@@ -528,20 +528,40 @@ def main() -> None:
             elif key in (ord('c'), ord('C')):
                 # Cycle to the next camera
                 try:
-                    next_pos = (current_cam_pos + 1) % len(camera_indices)
-                    idx_next, cap_next = open_camera_at(next_pos)
-                    if cap_next is not None and cap_next.isOpened():
-                        # Swap camera safely
-                        try:
-                            cap.release()
-                        except Exception:
-                            pass
-                        cap = cap_next
-                        idx = idx_next
-                        current_cam_pos = next_pos
-                        print(f"[INFO] Switched to camera index {idx} (position {current_cam_pos+1}/{len(camera_indices)}).")
+                    if len(camera_indices) <= 1:
+                        print("[INFO] Only one camera available; cannot cycle.")
                     else:
-                        print(f"[WARN] Could not open camera at index {camera_indices[next_pos]}. Staying on {idx}.")
+                        next_pos = (current_cam_pos + 1) % len(camera_indices)
+                        if next_pos == current_cam_pos:
+                            print("[INFO] No other cameras to switch to.")
+                        else:
+                            prev_pos = current_cam_pos
+                            prev_idx = idx
+                            # Release current camera first to avoid backend lock-ups (e.g., Windows DSHOW)
+                            try:
+                                cap.release()
+                            except Exception:
+                                pass
+                            # Small delay to let OS release the device
+                            time.sleep(0.15)
+
+                            idx_next, cap_next = open_camera_at(next_pos)
+                            if cap_next is not None and cap_next.isOpened():
+                                cap = cap_next
+                                idx = idx_next
+                                current_cam_pos = next_pos
+                                print(f"[INFO] Switched to camera index {idx} (position {current_cam_pos+1}/{len(camera_indices)}).")
+                            else:
+                                print(f"[WARN] Could not open camera at index {camera_indices[next_pos]}. Reverting to {prev_idx}.")
+                                # Try to reopen previous camera
+                                idx_prev, cap_prev = open_camera_at(prev_pos)
+                                if cap_prev is not None and cap_prev.isOpened():
+                                    cap = cap_prev
+                                    idx = idx_prev
+                                    current_cam_pos = prev_pos
+                                else:
+                                    print("[ERROR] Failed to reopen previous camera; exiting.")
+                                    break
                 except Exception as e:
                     print(f"[ERROR] Camera switch failed: {e}")
             elif not game_state.game_started and (key == 32 or key == 13):  # Space (32) or Enter (13)
