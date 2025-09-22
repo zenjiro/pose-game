@@ -364,6 +364,17 @@ def main() -> None:
                 if hand_hits > 0:
                     putText_with_outline(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3)
                     audio_mgr.play_hand_hit()  # (c) hit a rock on the hands (a bit good)
+                    # Spawn brighter blue-ish, shorter, downward explosion for hand hits
+                    for (px, py) in hand_events.get("positions", []):
+                        effects.spawn_explosion(
+                            px, py,
+                            base_color=(255, 160, 100),  # brighter blue-ish (BGR)
+                            count=60,
+                            life_min=0.5 * (2.0/3.0),  # 寿命を 2/3 に短縮
+                            life_max=1.0 * (2.0/3.0),
+                            gravity_min=60.0, gravity_max=140.0,  # downward gravity
+                            end_color=(90, 110, 130)
+                        )
 
                 # Collect foot circles per player and check foot-rock collisions (step 6)
                 # Use per-player scoring: foot hit => +1
@@ -378,7 +389,7 @@ def main() -> None:
                             audio_mgr.play_foot_hit()  # (d) hit a rock on the foots (very good)
                             # Spawn explosion particles at hit positions
                             for (px, py) in events.get("positions", []):
-                                effects.spawn_explosion(px, py, base_color=(50, 180, 255))
+                                effects.spawn_explosion(px, py, base_color=(50, 180, 255), count=112)
 
                 # Update and draw rocks and effects
                 rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
