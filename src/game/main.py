@@ -136,6 +136,8 @@ def main() -> None:
     prev = time.time()
     fps = 0.0
     dt = 0.0
+    # Track gesture start hold time (raise hand above head)
+    gesture_hold_start: float | None = None
 
     try:
         while True:
@@ -164,6 +166,39 @@ def main() -> None:
 
             # Show title screen if game hasn't started
             if not game_state.game_started:
+                # Gesture-based start: raise a hand above the head for 2 seconds
+                now_g = time.time()
+                def any_hand_above_head(people_list):
+                    try:
+                        for p in people_list:
+                            head_list = p.get("head", [])
+                            hand_list = p.get("hands", [])
+                            if not head_list or not hand_list:
+                                continue
+                            head_c = head_list[0]
+                            margin = max(5, int(head_c.r * 0.2))
+                            for hc in hand_list:
+                                # y-axis grows downward; smaller y means higher
+                                if hc.y < head_c.y - margin:
+                                    return True
+                    except Exception:
+                        pass
+                    return False
+                if any_hand_above_head(people):
+                    if gesture_hold_start is None:
+                        gesture_hold_start = now_g
+                    hold_elapsed = now_g - gesture_hold_start
+                    if hold_elapsed >= 2.0:
+                        game_state.start_game()
+                        audio_mgr.play_game_start()  # (a) start new game
+                        print("[INFO] Game started by hand-raise gesture!")
+                        gesture_hold_start = None
+                else:
+                    gesture_hold_start = None
+                # Compute remaining hold time for UI hint
+                hold_remaining = None
+                if gesture_hold_start is not None:
+                    hold_remaining = max(0.0, 2.0 - (now_g - gesture_hold_start))
                 # Show title screen (draw after detection to avoid occluding pose inputs)
                 h, w = frame.shape[:2]
                 # Try to render Japanese via PIL if available and font provided
@@ -183,7 +218,8 @@ def main() -> None:
                     title = "ポーズゲーム"
                     line1 = "あたまで いわを よけよう！"
                     line2 = "あしで いわを けって スコアを かせごう！"
-                    hint = "スペース または エンター で スタート"
+                    # Gesture start hint (requested wording)
+                    hint = "てを　あげると　スタート"
                     # Helper to center text
                     def draw_centered(text: str, y: int, font, color=(255,255,0)):
                         if font is None:
@@ -218,7 +254,13 @@ def main() -> None:
                                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
                     putText_with_outline(frame, "Hit rocks with your feet to score!", (frame.shape[1]//2 - 230, frame.shape[0]//2 + 20), 
                                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
-                    putText_with_outline(frame, "Press SPACE or ENTER to start", (frame.shape[1]//2 - 220, frame.shape[0]//2 + 80), 
+                    if hold_remaining is not None:
+                        hint_ascii = "Raise a hand to start"
+                    else:
+                        hint_ascii = "Raise a hand to start"
+                    (tw, th), _ = cv2.getTextSize(hint_ascii, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
+                    tx = frame.shape[1]//2 - tw//2
+                    putText_with_outline(frame, hint_ascii, (tx, frame.shape[0]//2 + 80), 
                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (100, 255, 100), 2)
             else:
                 # Only spawn new rocks if game is started and still active
@@ -431,6 +473,38 @@ def main() -> None:
                 if use_jp_font and img_pil:
                     frame = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
                 
+                # Handle game-over restart via gesture (hand above head for 2s)
+                restart_hold_remaining = None
+                if game_state.game_over:
+                    now_rg = time.time()
+                    def any_hand_above_head_restart(people_list):
+                        try:
+                            for p in people_list:
+                                head_list = p.get("head", [])
+                                hand_list = p.get("hands", [])
+                                if not head_list or not hand_list:
+                                    continue
+                                head_c = head_list[0]
+                                margin = max(5, int(head_c.r * 0.2))
+                                for hc in hand_list:
+                                    if hc.y < head_c.y - margin:
+                                        return True
+                        except Exception:
+                            pass
+                        return False
+                    if any_hand_above_head_restart(people):
+                        if gesture_hold_start is None:
+                            gesture_hold_start = now_rg
+                        hold_elapsed_rg = now_rg - gesture_hold_start
+                        if hold_elapsed_rg >= 2.0:
+                            game_state.reset()
+                            rock_mgr.reset()
+                            print("[INFO] Game restarted by hand-raise gesture!")
+                            gesture_hold_start = None
+                        else:
+                            restart_hold_remaining = max(0.0, 2.0 - hold_elapsed_rg)
+                    else:
+                        gesture_hold_start = None
                 # Display game over messages side-by-side
                 if game_state.game_over:
                     winner = game_state.get_winner()
@@ -458,7 +532,8 @@ def main() -> None:
                             left_msg = "ひきわけ"
                             right_msg = "ひきわけ"
                         
-                        restart_msg = "スペースキーかエンターキーでもういちど"
+                        # Restart hint via gesture (requested wording)
+                        restart_msg = "てを　あげると　もういちど"
 
                         def draw_centered_gameover(text: str, center_x: int, y: int, font, color=(255,255,0)):
                             if font is None:
@@ -506,8 +581,8 @@ def main() -> None:
                         put_centered(left_msg, left_center[0], left_center[1], 1.4, (0, 255, 255))
                         put_centered(right_msg, right_center[0], right_center[1], 1.4, (0, 255, 255))
 
-                        # Show restart instructions centered
-                        restart_msg = "Press SPACE or ENTER to play again"
+                        # Show restart instructions centered (gesture)
+                        restart_msg = "Raise a hand over head for 2s to restart (countdown)"
                         (rw, rh), _ = cv2.getTextSize(restart_msg, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
                         rx = w // 2 - rw // 2
                         ry = h // 2 + 60
@@ -565,15 +640,11 @@ def main() -> None:
                 except Exception as e:
                     print(f"[ERROR] Camera switch failed: {e}")
             elif not game_state.game_started and (key == 32 or key == 13):  # Space (32) or Enter (13)
-                # Start game from title screen
-                game_state.start_game()
-                audio_mgr.play_game_start()  # (a) start new game
-                print("[INFO] Game started!")
+                # Start via gesture only; ignore SPACE/ENTER on title
+                print("[INFO] Title: start with hand-raise gesture (2s), SPACE/ENTER disabled.")
             elif game_state.game_over and (key == 32 or key == 13):  # Space (32) or Enter (13)
-                # Reset game state for new game
-                game_state.reset()
-                rock_mgr.reset()
-                print("[INFO] Game restarted - all players reset to 3 lives and 0 score")
+                # Restart via gesture only; ignore SPACE/ENTER on game over
+                print("[INFO] GameOver: restart with hand-raise gesture (2s), SPACE/ENTER disabled.")
     finally:
         cap.release()
         try:
