@@ -9,6 +9,7 @@ import numpy as np
 from .camera import open_camera, list_available_cameras
 from .pose import PoseEstimator
 from .render import draw_circles, put_fps, draw_rocks
+from .effects import EffectsManager
 from .gameplay import RockManager
 from .player import GameState
 from .audio import AudioManager
@@ -132,6 +133,7 @@ def main() -> None:
     audio_mgr = AudioManager()
     rock_mgr = RockManager(width=1280, height=720, audio_manager=audio_mgr)
     game_state = GameState(num_players=2, audio_manager=audio_mgr)
+    effects = EffectsManager()
 
     prev = time.time()
     fps = 0.0
@@ -374,10 +376,15 @@ def main() -> None:
                         if hits:
                             game_state.handle_foot_hit(i, hits)
                             audio_mgr.play_foot_hit()  # (d) hit a rock on the foots (very good)
+                            # Spawn explosion particles at hit positions
+                            for (px, py) in events.get("positions", []):
+                                effects.spawn_explosion(px, py, base_color=(50, 180, 255))
 
-                # Update and draw rocks
+                # Update and draw rocks and effects
                 rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
+                effects.update(max(0.0, min(dt, 0.05)))
                 draw_rocks(frame, rock_mgr.rocks)
+                effects.draw(frame)
 
                 # Draw scores and lives for players (P1 left, P2 right)
                 h, w = frame.shape[:2]
