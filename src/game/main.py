@@ -78,6 +78,7 @@ def main() -> None:
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
     # If not provided, we try to auto-detect a Japanese-capable font per OS
     parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
+    parser.add_argument("--arcade", action="store_true", help="Use Arcade window for rendering (GPU)")
     args = parser.parse_args()
 
     # Pre-scan available cameras and set up camera cycling list
@@ -125,9 +126,10 @@ def main() -> None:
             print("Error: Could not open any camera. Exiting.")
             return
 
-    window_name = "Pose Game"
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    if not args.arcade:
+        window_name = "Pose Game"
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     pose = PoseEstimator(max_people=2, tasks_model=args.tasks_model)
     audio_mgr = AudioManager()
@@ -140,6 +142,212 @@ def main() -> None:
     dt = 0.0
     # Track gesture start hold time (raise hand above head)
     gesture_hold_start: float | None = None
+
+    if args.arcade:
+        # Arcade rendering path
+        import arcade
+        import pyglet
+        WIDTH, HEIGHT = 1280, 720
+
+        class PoseGameWindow(arcade.Window):
+            def __init__(self):
+                super().__init__(WIDTH, HEIGHT, "Pose Game (Arcade)", fullscreen=True, update_rate=1/60)
+                arcade.set_background_color(arcade.color.BLACK)
+                self.players = [ {"head": [], "hands": [], "feet": []}, {"head": [], "hands": [], "feet": []} ]
+                self.cap = cap
+                self.pose = pose
+                self.audio_mgr = audio_mgr
+                self.rock_mgr = rock_mgr
+                self.game_state = game_state
+                self.effects = effects
+                self.args = args
+                self.last_frame_rgb = None
+                self.texture = None
+                self.bg_sprite = arcade.Sprite(center_x=WIDTH/2, center_y=HEIGHT/2)
+                self.bg_sprite.width = WIDTH
+                self.bg_sprite.height = HEIGHT
+                self.fps = 0.0
+                self._prev = time.time()
+                self._cam_fail = 0
+
+            def on_update(self, dt: float):
+                now = time.time()
+                # Smooth FPS
+                if dt > 0:
+                    self.fps = 0.9 * self.fps + 0.1 * (1.0 / dt)
+                # Read camera
+                ok, frame_bgr = self.cap.read()
+                if not ok or frame_bgr is None:
+                    self._cam_fail += 1
+                    if self._cam_fail > 30:
+                        return
+                    return
+                self._cam_fail = 0
+                # Duplicate mode
+                if self.args.duplicate:
+                    h, w = frame_bgr.shape[:2]
+                    left = int(w * 0.25)
+                    right = int(w * 0.75)
+                    center = frame_bgr[:, left:right].copy()
+                    half_w = w // 2
+                    if center.shape[1] != half_w:
+                        center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
+                    frame_bgr = cv2.hconcat([center, center])
+                # Pose processing
+                people = self.pose.process(frame_bgr)
+
+                # Title/game start gesture logic (same as OpenCV path)
+                if not self.game_state.game_started:
+                    # Gesture-based start: raise a hand above the head for 2 seconds
+                    now_g = time.time()
+                    def any_hand_above_head(people_list):
+                        try:
+                            for p in people_list:
+                                head_list = p.get("head", [])
+                                hand_list = p.get("hands", [])
+                                if not head_list or not hand_list:
+                                    continue
+                                head_c = head_list[0]
+                                margin = max(5, int(head_c.r * 0.2))
+                                for hc in hand_list:
+                                    if hc.y < head_c.y - margin:
+                                        return True
+                        except Exception:
+                            pass
+                        return False
+                    if any_hand_above_head(people):
+                        nonlocal gesture_hold_start
+                        if gesture_hold_start is None:
+                            gesture_hold_start = now_g
+                        hold_elapsed = now_g - gesture_hold_start
+                        if hold_elapsed >= 2.0:
+                            self.game_state.start_game()
+                            self.audio_mgr.play_game_start()
+                            gesture_hold_start = None
+                    else:
+                        gesture_hold_start = None
+                else:
+                    # Active gameplay
+                    if not self.game_state.game_over:
+                        self.rock_mgr.maybe_spawn()
+
+                # Map detected people to players by head X position
+                h, w = frame_bgr.shape[:2]
+                def _head_x(p: dict) -> int | None:
+                    hs = p.get("head", [])
+                    return hs[0].x if hs else None
+                players = [ {"head": [], "hands": [], "feet": []}, {"head": [], "hands": [], "feet": []} ]
+                self.players = players
+                if len(people) >= 2:
+                    idx_x = [(i, _head_x(p)) for i, p in enumerate(people)]
+                    with_head = [(i, x) for i, x in idx_x if x is not None]
+                    if len(with_head) >= 2:
+                        with_head.sort(key=lambda t: t[1])
+                        left_idx = with_head[0][0]
+                        right_idx = with_head[-1][0]
+                    else:
+                        left_idx, right_idx = 0, 1
+                    players[0] = people[left_idx]
+                    players[1] = people[right_idx]
+                elif len(people) == 1:
+                    x = _head_x(people[0])
+                    if x is not None and x < w // 2:
+                        players[0] = people[0]
+                    else:
+                        players[1] = people[0]
+
+                # Collision and game logic
+                if self.game_state.game_started:
+                    self.game_state.update()
+                    remaining_time = self.game_state.get_remaining_time()
+                    if remaining_time <= 10 and remaining_time > 0:
+                        self.audio_mgr.play_hurry_alarm()
+                    # Head collisions per player
+                    head_hits_display = []
+                    for i in range(2):
+                        circles = players[i]
+                        head_circles = [(c.x, c.y, c.r) for c in circles.get("head", [])]
+                        if head_circles:
+                            hits = self.rock_mgr.handle_head_collisions(head_circles)
+                            if hits > 0:
+                                damage_taken = self.game_state.handle_head_hit(i)
+                                if damage_taken:
+                                    head_hits_display.append("LIFE LOST!")
+                                    self.audio_mgr.play_head_hit()
+                                else:
+                                    head_hits_display.append("INVULNERABLE")
+                    # Hands collisions
+                    hand_circles = []
+                    for circles in players:
+                        for c in circles.get("hands", []):
+                            hand_circles.append((c.x, c.y, c.r))
+                    hand_events = self.rock_mgr.handle_collisions(kind="hands", circles=hand_circles)
+                    hand_hits = hand_events.get("hits", 0)
+                    if hand_hits > 0:
+                        self.audio_mgr.play_hand_hit()
+                        for (px, py) in hand_events.get("positions", []):
+                            self.effects.spawn_explosion(
+                                px, py,
+                                base_color=(255, 160, 100),
+                                count=60,
+                                life_min=0.5 * (2.0/3.0),
+                                life_max=1.0 * (2.0/3.0),
+                                gravity_min=60.0, gravity_max=140.0,
+                                end_color=(90, 110, 130)
+                            )
+                    # Feet collisions by player
+                    for i in range(2):
+                        circles = players[i]
+                        feet = [(c.x, c.y, c.r) for c in circles.get("feet", [])]
+                        if feet:
+                            events = self.rock_mgr.handle_collisions(kind="feet", circles=feet)
+                            hits = events.get("hits", 0)
+                            if hits:
+                                self.game_state.handle_foot_hit(i, hits)
+                                self.audio_mgr.play_foot_hit()
+                                for (px, py) in events.get("positions", []):
+                                    self.effects.spawn_explosion(px, py, base_color=(50, 180, 255), count=112)
+                # Update managers
+                self.rock_mgr.update(max(0.0, min(dt, 0.05)))
+                self.effects.update(max(0.0, min(dt, 0.05)))
+
+                # Store RGB image and create/update pyglet image for fast blitting
+                frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                self.last_frame_rgb = frame_rgb
+                try:
+                    if PIL_AVAILABLE:
+                        img = Image.fromarray(frame_rgb).convert("RGBA")
+                        w, h = img.size
+                        # Negative pitch flips the image vertically to match Arcade's coordinate system
+                        self.pg_image = pyglet.image.ImageData(w, h, 'RGBA', img.tobytes(), pitch=-w * 4)
+                    else:
+                        self.pg_image = None
+                except Exception as e:
+                    print(f"[Arcade] Image update failed: {e}")
+                    self.pg_image = None
+
+            def on_draw(self):
+                self.clear()
+                # Draw background camera frame
+                if getattr(self, 'pg_image', None) is not None:
+                    # Blit the latest pyglet image to fill the window
+                    self.pg_image.blit(0, 0, width=WIDTH, height=HEIGHT)
+                # Draw pose circles (if any)
+                from .render import draw_rocks_arcade, draw_circles_arcade
+                try:
+                    draw_circles_arcade(self.players[0], HEIGHT, color=(0, 0, 255))
+                    draw_circles_arcade(self.players[1], HEIGHT, color=(255, 0, 0))
+                except Exception as e:
+                    pass
+                # Draw rocks and effects
+                draw_rocks_arcade(self.rock_mgr.rocks, HEIGHT)
+                self.effects.draw_arcade(HEIGHT, fps=self.fps)
+                # Draw simple HUD: FPS
+                arcade.draw_text(f"FPS: {self.fps:.1f}", 12, HEIGHT - 28, arcade.color.WHITE, 14)
+
+        win = PoseGameWindow()
+        arcade.run()
+        return
 
     try:
         while True:

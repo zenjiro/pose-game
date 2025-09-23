@@ -7,33 +7,17 @@ import cv2
 import numpy as np
 
 from .pose import Circle
+import arcade
 
 
 def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift: int = 0, color: tuple[int, int, int] | None = None) -> None:
-    """Overlay head/hands/feet circles on the frame in-place.
-    - If `color` is provided, use it for all groups (uniform per-player color).
-    - Otherwise, use per-group base colors and optional color_shift to vary hues.
-    """
+    """OpenCV overlay for head/hands/feet circles (kept for compatibility)."""
     base_colors = {
-        "head": (0, 200, 255),   # orange-ish
-        "hands": (60, 220, 60),  # green
-        "feet": (255, 80, 80),   # blue-ish red
+        "head": (0, 200, 255),
+        "hands": (60, 220, 60),
+        "feet": (255, 80, 80),
     }
     thickness = 2
-
-    # Debug: print incoming groups once per run to verify drawing inputs
-    if not hasattr(draw_circles, "_debug_printed"):
-        draw_circles._debug_printed = False
-    if not draw_circles._debug_printed:
-        try:
-            print(f"[draw_circles] groups={{k: len(v) for k,v in groups.items()}} color_shift={color_shift} color={color}")
-            for k, v in groups.items():
-                if v:
-                    print(f"[draw_circles] first {k} = ({v[0].x},{v[0].y},{v[0].r})")
-        except Exception:
-            pass
-        draw_circles._debug_printed = True
-
     for key, circles in groups.items():
         if color is not None:
             use_color = color
@@ -41,8 +25,31 @@ def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift
             base = base_colors.get(key, (255, 255, 255))
             use_color = tuple(int((c + color_shift) % 256) for c in base)
         for c in circles:
-            # Outline-only drawing (restore original behavior)
             cv2.circle(frame, (int(c.x), int(c.y)), int(c.r), use_color, thickness, cv2.LINE_AA)
+
+
+def draw_circles_arcade(groups: Dict[str, List[Circle]], height: int, color_shift: int = 0, color: tuple[int, int, int] | None = None, thickness: float = 2.0) -> None:
+    """Arcade version: draw head/hands/feet circles as outlines.
+    Flip Y because Arcade's origin is bottom-left but our coordinates are top-left.
+    """
+    base_colors = {
+        "head": (0, 200, 255),
+        "hands": (60, 220, 60),
+        "feet": (255, 80, 80),
+    }
+    for key, circles in groups.items():
+        if color is not None:
+            use_color = color
+        else:
+            base = base_colors.get(key, (255, 255, 255))
+            use_color = tuple(int((c + color_shift) % 256) for c in base)
+        # BGR -> RGB for Arcade
+        col = (use_color[2], use_color[1], use_color[0])
+        for c in circles:
+            x = float(c.x)
+            y = float(height - c.y)
+            r = float(c.r)
+            arcade.draw_circle_outline(x, y, r, col, border_width=thickness)
 
 
 def put_fps(frame: np.ndarray, fps: float) -> None:
@@ -53,11 +60,24 @@ def put_fps(frame: np.ndarray, fps: float) -> None:
 def draw_rocks(frame: np.ndarray, rocks: List[Rock]) -> None:
     for rk in rocks:
         cv2.circle(frame, (int(rk.x), int(rk.y)), int(rk.r), rk.color, -1, cv2.LINE_AA)
-        # Simple shading
         cv2.circle(frame, (int(rk.x - rk.r * 0.3), int(rk.y - rk.r * 0.3)), int(rk.r * 0.3), (100, 100, 100), -1, cv2.LINE_AA)
-        # If rock was hit, draw a red outline to indicate the collision
         try:
             if getattr(rk, "hit", False):
                 cv2.circle(frame, (int(rk.x), int(rk.y)), int(rk.r + 4), (0, 0, 200), 3, cv2.LINE_AA)
+        except Exception:
+            pass
+
+
+def draw_rocks_arcade(rocks: List[Rock], height: int) -> None:
+    for rk in rocks:
+        x = float(rk.x)
+        y = float(height - rk.y)
+        r = float(rk.r)
+        col = (rk.color[2], rk.color[1], rk.color[0])
+        arcade.draw_circle_filled(x, y, r, col)
+        arcade.draw_circle_filled(x - r * 0.3, y + r * 0.3, r * 0.3, (100, 100, 100))
+        try:
+            if getattr(rk, "hit", False):
+                arcade.draw_circle_outline(x, y, r + 4, (200, 0, 0), border_width=3)
         except Exception:
             pass

@@ -7,6 +7,7 @@ from typing import List, Tuple
 
 import cv2
 import numpy as np
+import arcade
 
 
 @dataclass
@@ -75,12 +76,13 @@ class EffectsManager:
                          size_min: float = 2.0, size_max: float = 6.0) -> None:
         # base_color is BGR. Keep brighter overall, fade but not to full black
         _end_color = end_color if end_color is not None else (40, 60, 60)
-        for _ in range(count):
+        scaled_count = max(1, int(count * getattr(self, 'count_scale', 1.0)))
+        for _ in range(scaled_count):
             ang = random.random() * math.tau
             spd = random.uniform(speed_min, speed_max)
             vx = math.cos(ang) * spd
             vy = math.sin(ang) * spd
-            size = random.uniform(size_min, size_max)
+            size = random.uniform(size_min, size_max) * getattr(self, 'size_scale', 1.0)
             life = random.uniform(life_min, life_max)
             # Gravity: allow overrides; positive = downward, negative = upward (screen y grows down)
             gravity = random.uniform(gravity_min, gravity_max)
@@ -151,3 +153,26 @@ class EffectsManager:
             accum = cv2.add(accum, glow_layer * float(self.glow_weight))
         np.clip(accum, 0.0, 255.0, out=accum)
         frame[:, :, :] = accum.astype(np.uint8)
+
+    def draw_arcade(self, height: int, fps: float | None = None) -> None:
+        """Draw particles using Arcade. Uses a simple core + halo approach with alpha blending for speed.
+        Glow is enabled only if FPS is above threshold (if provided).
+        """
+        effective_glow = self.use_glow and (fps is None or fps >= getattr(self, 'fps_threshold_for_glow', 0.0))
+        for p in self.particles:
+            cx = float(p.x)
+            cy = float(height - p.y)
+            base_col = p.color()
+            age = p.t()
+            intensity = float(max(0.0, 1.0 - age))
+            intensity = intensity * intensity
+            # Convert to Arcade RGB with alpha based on intensity
+            col_rgb = (int(base_col[2]), int(base_col[1]), int(base_col[0]))
+            rad = float(p.radius()) * getattr(self, 'size_scale', 1.0)
+            if effective_glow:
+                halo_r = max(1.0, rad * self.halo_scale)
+                # Low alpha halo
+                arcade.draw_circle_filled(cx, cy, halo_r, (*col_rgb, int(60 * intensity + 20)))
+            # Core: higher alpha
+            core_r = max(1.0, rad * self.core_scale)
+            arcade.draw_circle_filled(cx, cy, core_r, (*col_rgb, int(180 * intensity + 40)))
