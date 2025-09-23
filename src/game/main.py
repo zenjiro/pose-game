@@ -314,17 +314,21 @@ def main() -> None:
                 # Store RGB image and create/update pyglet image for fast blitting
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 self.last_frame_rgb = frame_rgb
+                # Allocate/reuse a single pyglet ImageData and update raw data only
+                if not hasattr(self, 'pg_image') or self.pg_image is None:
+                    # First-time allocation
+                    h, w = frame_rgb.shape[:2]
+                    blank = (np.zeros((h, w, 4), dtype=np.uint8)).tobytes()
+                    self.pg_image = pyglet.image.ImageData(w, h, 'RGBA', blank, pitch=-w * 4)
+
                 try:
-                    if PIL_AVAILABLE:
-                        img = Image.fromarray(frame_rgb).convert("RGBA")
-                        w, h = img.size
-                        # Negative pitch flips the image vertically to match Arcade's coordinate system
-                        self.pg_image = pyglet.image.ImageData(w, h, 'RGBA', img.tobytes(), pitch=-w * 4)
-                    else:
-                        self.pg_image = None
+                    h, w = frame_rgb.shape[:2]
+                    rgba = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2RGBA)
+                    # Update the existing ImageData buffer without reallocating
+                    self.pg_image.set_data('RGBA', -w * 4, rgba.tobytes())
                 except Exception as e:
                     print(f"[Arcade] Image update failed: {e}")
-                    self.pg_image = None
+                    # Keep previous image to avoid flicker; do not nullify pg_image
 
             def on_draw(self):
                 self.clear()
