@@ -395,7 +395,7 @@ def main() -> None:
                 rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
                 effects.update(max(0.0, min(dt, 0.05)))
                 draw_rocks(frame, rock_mgr.rocks)
-                effects.draw(frame)
+                effects.draw(frame, fps=fps)
 
                 # Draw scores and lives for players (P1 left, P2 right)
                 h, w = frame.shape[:2]

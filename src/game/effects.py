@@ -56,10 +56,14 @@ class EffectsManager:
         # Glow/blend tuning (simulates Arcade's glow blending via blur + additive)
         self.use_glow: bool = True
         self.core_scale: float = 0.55   # crisp core radius as fraction of particle radius
-        self.halo_scale: float = 1.8    # glow halo radius as fraction of particle radius
-        self.glow_sigma: float = 6.0    # Gaussian blur sigma for glow layer
+        self.halo_scale: float = 1.08   # glow halo radius as fraction of particle radius (reduced to 60%)
+        self.glow_sigma: float = 3.6    # Gaussian blur sigma for glow layer (reduced to 60%)
         self.core_weight: float = 1.0   # weight for core layer when compositing
         self.glow_weight: float = 0.85  # weight for glow layer when compositing
+        # Performance/quality knobs
+        self.fps_threshold_for_glow: float = 10.0  # enable glow only when FPS >= threshold
+        self.count_scale: float = 0.5   # spawn half as many particles
+        self.size_scale: float = 1.5    # particles 1.5x size
 
     def spawn_explosion(self, x: float, y: float,
                          base_color: Tuple[int, int, int] = (0, 220, 255),
@@ -96,12 +100,14 @@ class EffectsManager:
             p.update(dt)
         self.particles = [p for p in self.particles if p.alive()]
 
-    def draw(self, frame: np.ndarray) -> None:
+    def draw(self, frame: np.ndarray, fps: float | None = None) -> None:
         # Draw particles using a glow pass so overlapping particles blend naturally.
         # We accumulate into two float32 layers (core + glow), blur the glow,
         # then additively blend back into the frame.
         h, w = frame.shape[:2]
-        if not self.use_glow:
+        # Dynamically enable/disable glow based on FPS threshold (if provided)
+        effective_glow = self.use_glow and (fps is None or fps >= getattr(self, 'fps_threshold_for_glow', 0.0))
+        if not effective_glow:
             for p in self.particles:
                 cx = int(p.x)
                 cy = int(p.y)
