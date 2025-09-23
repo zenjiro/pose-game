@@ -223,3 +223,84 @@ G) OSD（9）
 
 ---
 この plan.md に沿って、まずは「計測基盤（Phase 0）」を最優先で実装します。
+
+
+12. Phase 0 ベースライン計測 速報（2025-09-23）
+- 実行条件（共通）
+  - capture: 1280x720（open_camera()の既定値）
+  - model: models/pose_landmarker_lite.task（Tasks API, multi-person）
+  - players: 通常（--duplicate なし）
+  - 計測: --profile, --profile-csv, --max-seconds 10
+
+- OpenCV 版（runs/baseline_opencv_10s.csv）
+  - pose_infer: おおむね 56〜62 ms/フレーム、たまに 80 ms 超のスパイク
+  - draw_camera（imshow）: 0.7〜1.3 ms
+  - draw_pose/draw_rocks/draw_osd: 各 0.6〜1.4 ms 程度
+  - draw_fx: エフェクト発生時に 49〜57 ms 程度の大きな負荷。これにより frame_ms が 125〜140 ms（約 7〜8 FPS）まで落ちるフレームが散発
+  - collide: 通常 0.01〜0.3 ms 程度（現状の岩数条件では軽い）
+  - 総合: エフェクトが出ていないフレームは 70〜85 ms（約 12〜14 FPS）。ボトルネックは pose_infer、次点で draw_fx のスパイク
+
+- Arcade 版（runs/baseline_arcade_10s.csv）
+  - pose_infer: 約 56〜60 ms（OpenCV 版と同程度）
+  - draw_camera（pyglet blit）: 3〜4 ms 前後
+  - draw_pose/draw_rocks/draw_osd: 0.2〜0.8 ms 程度
+  - 初回フレームの draw_osd が約 186 ms（初期化/フォント等の影響）。以後は 0.2〜1.8 ms 程度で安定
+  - 総合: 多くのフレームが 64〜70 ms（約 14〜16 FPS）。OpenCV 版よりやや良好
+  - 注意: arcade.draw_text に PerformanceWarning（Text オブジェクト利用推奨）
+
+- まとめ（現時点の所見）
+  1) 姿勢推定が最大ボトルネック（約 57〜62 ms/フレーム）
+  2) OpenCV 版のエフェクト描画がスパイク要因（50 ms 級）
+  3) 描画（カメラ背景/〇/岩/OSD）は Arcade 版のほうが若干有利
+
+
+13. 次回再開時の進め方（実験プラン）
+- 早期に --duplicate の計測を追加（2 人対戦負荷の想定）
+  - 例（OpenCV 版）:
+    - uv run python -m game.main --profile --profile-csv runs/opencv_dup_10s.csv --max-seconds 10 --duplicate
+  - 例（Arcade 版）:
+    - uv run python -m game.main --arcade --profile --profile-csv runs/arcade_dup_10s.csv --max-seconds 10 --duplicate
+  - 目的: 2 人時の描画・当たり判定・エフェクト増加の影響を早期に把握
+
+- Phase 1（推論最適化）をすぐ測れる仕掛けの追加
+  - CLI を追加
+    - --infer-size {128,160,192,224,256}（推論入力の縮小）
+    - --infer-skip-n {0,1,2,...}（n フレームごとに 1 回だけ推論）
+  - スイープの実行と CSV 収集
+    - 固定条件: capture=720p, --duplicate の有無それぞれで比較
+    - 期待: pose_infer を 30〜40 ms 台以下に抑え、全体 30 FPS 付近を狙う
+
+- capture 解像度を CLI 化
+  - --capture-width/--capture-height を追加し、720p/1080p の比較を容易に
+  - 描画解像度は変えない（要件どおり）。取り込みは FHD/720p を使い分ける
+
+- エフェクト描画のスパイク対策（OpenCV 版）
+  - 既存の fps_threshold_for_glow=10.0 を 18〜20 へ一時的に引き上げて検証（12〜16 FPS 帯では glow を抑止）
+  - sigma/halo/core_weight 等のパラメタを軽量側にシフト
+  - 粒子数(count)の上限/寿命/layer 合成のコストを FPS に応じて段階制御
+
+- Arcade 描画の改善
+  - Text オブジェクトへの置換（draw_text からの移行）
+  - 将来的には SpriteList/Geometry でのバッチ化を検討
+
+- 分離ベンチの実装（短期で）
+  - scripts/bench_capture_infer.py（取り込み＋推論のみ）
+  - scripts/bench_render_static.py（固定フレームで描画のみ、OpenCV/Arcade）
+
+
+14. 推奨実行レシピ（次回計測用コマンド例）
+- ベースライン + duplicate
+  - OpenCV:  uv run python -m game.main --profile --profile-csv runs/opencv_dup_10s.csv --max-seconds 10 --duplicate
+  - Arcade:  uv run python -m game.main --arcade --profile --profile-csv runs/arcade_dup_10s.csv --max-seconds 10 --duplicate
+- 推論サイズスイープ（例）
+  - OpenCV:  uv run python -m game.main --profile --profile-csv runs/opencv_size160.csv --max-seconds 10 --infer-size 160
+  - Arcade:  uv run python -m game.main --arcade --profile --profile-csv runs/arcade_size160.csv --max-seconds 10 --infer-size 160
+- 推論間引き（例）
+  - OpenCV:  uv run python -m game.main --profile --profile-csv runs/opencv_skip2.csv --max-seconds 10 --infer-skip-n 2
+  - Arcade:  uv run python -m game.main --arcade --profile --profile-csv runs/arcade_skip2.csv --max-seconds 10 --infer-skip-n 2
+
+
+15. トラッキング（任意）
+- Jira: Phase 0 完了、Phase 1/2/3 のタスクを作成（推論サイズ/頻度、capture CLI、エフェクト軽量化、Arcade Text 化、分離ベンチ）
+- Confluence: ベースライン結果・CSV・所見を記録（この plan.md の要約＋グラフ）
+- PR: 計測機能の追加を main から分岐したブランチで PR 化
