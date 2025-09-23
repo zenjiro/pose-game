@@ -6,6 +6,8 @@ import math
 import cv2
 import numpy as np
 
+from .profiler import init_profiler, get_profiler
+
 from .camera import open_camera, list_available_cameras
 from .pose import PoseEstimator
 from .render import draw_circles, put_fps, draw_rocks
@@ -79,7 +81,15 @@ def main() -> None:
     # If not provided, we try to auto-detect a Japanese-capable font per OS
     parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
     parser.add_argument("--arcade", action="store_true", help="Use Arcade window for rendering (GPU)")
+    parser.add_argument("--profile", action="store_true", help="Enable frame profiling")
+    parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV")
+    parser.add_argument("--profile-osd", action="store_true", help="Overlay profiling stats (slight overhead)")
+    parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
     args = parser.parse_args()
+
+    # Initialize profiler
+    init_profiler(enabled=bool(args.profile), csv_path=args.profile_csv)
+    run_start_ts = time.time()
 
     # Pre-scan available cameras and set up camera cycling list
     avail_infos = list_available_cameras(max_index=5, width=1280, height=720)
@@ -136,6 +146,7 @@ def main() -> None:
     rock_mgr = RockManager(width=1280, height=720, audio_manager=audio_mgr)
     game_state = GameState(num_players=2, audio_manager=audio_mgr)
     effects = EffectsManager()
+    prof = get_profiler()
 
     prev = time.time()
     fps = 0.0
@@ -153,7 +164,7 @@ def main() -> None:
             def __init__(self):
                 super().__init__(WIDTH, HEIGHT, "Pose Game (Arcade)", fullscreen=True, update_rate=1/60)
                 arcade.set_background_color(arcade.color.BLACK)
-                self.players = [ {"head": [], "hands": [], "feet": []}, {"head": [], "hands": [], "feet": []} ]
+                self.players = [{"head": [], "hands": [], "feet": []}, {"head": [], "hands": [], "feet": []}]
                 self.cap = cap
                 self.pose = pose
                 self.audio_mgr = audio_mgr
@@ -169,6 +180,7 @@ def main() -> None:
                 self.fps = 0.0
                 self._prev = time.time()
                 self._cam_fail = 0
+                self.prof = get_profiler()
 
             def on_update(self, dt: float):
                 now = time.time()
@@ -176,7 +188,9 @@ def main() -> None:
                 if dt > 0:
                     self.fps = 0.9 * self.fps + 0.1 * (1.0 / dt)
                 # Read camera
-                ok, frame_bgr = self.cap.read()
+                self.prof.start_frame()
+                with self.prof.section("camera_read"):
+                    ok, frame_bgr = self.cap.read()
                 if not ok or frame_bgr is None:
                     self._cam_fail += 1
                     if self._cam_fail > 30:
@@ -194,7 +208,8 @@ def main() -> None:
                         center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
                     frame_bgr = cv2.hconcat([center, center])
                 # Pose processing
-                people = self.pose.process(frame_bgr)
+                with self.prof.section("pose_infer"):
+                    people = self.pose.process(frame_bgr)
 
                 # Title/game start gesture logic (same as OpenCV path)
                 if not self.game_state.game_started:
@@ -335,48 +350,70 @@ def main() -> None:
                 # Draw background camera frame
                 if getattr(self, 'pg_image', None) is not None:
                     # Blit the latest pyglet image to fill the window
-                    self.pg_image.blit(0, 0, width=WIDTH, height=HEIGHT)
+                    with self.prof.section("draw_camera"):
+                        self.pg_image.blit(0, 0, width=WIDTH, height=HEIGHT)
                 # Draw pose circles (if any)
                 from .render import draw_rocks_arcade, draw_circles_arcade
                 try:
-                    draw_circles_arcade(self.players[0], HEIGHT, color=(0, 0, 255))
-                    draw_circles_arcade(self.players[1], HEIGHT, color=(255, 0, 0))
-                except Exception as e:
+                    with self.prof.section("draw_pose"):
+                        draw_circles_arcade(self.players[0], HEIGHT, color=(0, 0, 255))
+                        draw_circles_arcade(self.players[1], HEIGHT, color=(255, 0, 0))
+                except Exception:
                     pass
                 # Draw rocks and effects
-                draw_rocks_arcade(self.rock_mgr.rocks, HEIGHT)
-                self.effects.draw_arcade(HEIGHT, fps=self.fps)
+                with self.prof.section("draw_rocks"):
+                    draw_rocks_arcade(self.rock_mgr.rocks, HEIGHT)
+                with self.prof.section("draw_fx"):
+                    self.effects.draw_arcade(HEIGHT, fps=self.fps)
                 # Draw simple HUD: FPS
-                arcade.draw_text(f"FPS: {self.fps:.1f}", 12, HEIGHT - 28, arcade.color.WHITE, 14)
+                with self.prof.section("draw_osd"):
+                    arcade.draw_text(f"FPS: {self.fps:.1f}", 12, HEIGHT - 28, arcade.color.WHITE, 14)
+                # Optionally show profiler OSD in Arcade window title
+                if self.args.profile_osd:
+                    avg = self.prof.get_averages()
+                    frame_ms = avg.get("frame_total", 0.0)
+                    fps_osd = (1000.0/frame_ms) if frame_ms > 0 else 0.0
+                    self.set_caption(f"Pose Game (Arcade) - {fps_osd:.1f} FPS, frame {frame_ms:.1f} ms")
+                self.prof.end_frame({"backend": "arcade"})
 
         win = PoseGameWindow()
-        arcade.run()
+        # Run Arcade loop with optional timed exit
+        if args.max_seconds is None:
+            arcade.run()
+        else:
+            import threading
+            def stop_after_delay():
+                time.sleep(max(0.0, args.max_seconds))
+                try:
+                    arcade.exit()
+                except Exception:
+                    pass
+            t = threading.Thread(target=stop_after_delay, daemon=True)
+            t.start()
+            arcade.run()
         return
 
     try:
         while True:
-            ok, frame = cap.read()
-            if not ok or frame is None:
-                continue
-
-            # If duplicate mode is enabled, clip the center vertical band and duplicate it
-            # to create a left/right mirrored-like frame for two-player testing.
-            if args.duplicate:
-                h, w = frame.shape[:2]
-                # Clip the center region: keep middle 50% (from 25% to 75%)
-                left = int(w * 0.25)
-                right = int(w * 0.75)
-                center = frame[:, left:right].copy()
-                # Resize center to half-width each side if needed to match original width
-                # We'll tile [center | center] to recreate the full width. If center*2 != w,
-                # resize each half to w//2 to avoid off-by-one issues.
-                half_w = w // 2
-                if center.shape[1] != half_w:
-                    center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
-                frame = cv2.hconcat([center, center])
+            prof.start_frame()
+            with prof.section("camera_read"):
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    continue
+                # If duplicate mode is enabled, clip the center vertical band and duplicate it
+                if args.duplicate:
+                    h, w = frame.shape[:2]
+                    left = int(w * 0.25)
+                    right = int(w * 0.75)
+                    center = frame[:, left:right].copy()
+                    half_w = w // 2
+                    if center.shape[1] != half_w:
+                        center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
+                    frame = cv2.hconcat([center, center])
 
             # Run pose detection on a clean frame BEFORE drawing any UI overlays.
-            people = pose.process(frame)
+            with prof.section("pose_infer"):
+                people = pose.process(frame)
 
             # Show title screen if game hasn't started
             if not game_state.game_started:
@@ -522,8 +559,9 @@ def main() -> None:
             # Always draw pose landmarks regardless of game state (uniform per-player color)
             P1_COLOR = (0, 0, 255)  # Red (BGR)
             P2_COLOR = (255, 0, 0)  # Blue (BGR)
-            draw_circles(frame, players[0], color=P1_COLOR)
-            draw_circles(frame, players[1], color=P2_COLOR)
+            with prof.section("draw_pose"):
+                draw_circles(frame, players[0], color=P1_COLOR)
+                draw_circles(frame, players[1], color=P2_COLOR)
 
             # Only run collision detection and game logic if game has started
             if game_state.game_started:
@@ -571,7 +609,8 @@ def main() -> None:
                 for circles in players:
                     for c in circles.get("hands", []):
                         hand_circles.append((c.x, c.y, c.r))
-                hand_events = rock_mgr.handle_collisions(kind="hands", circles=hand_circles)
+                with prof.section("collide"):
+                    hand_events = rock_mgr.handle_collisions(kind="hands", circles=hand_circles)
                 hand_hits = hand_events.get("hits", 0)
                 if hand_hits > 0:
                     putText_with_outline(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3)
@@ -594,7 +633,8 @@ def main() -> None:
                     circles = players[i]
                     feet = [(c.x, c.y, c.r) for c in circles.get("feet", [])]
                     if feet:
-                        events = rock_mgr.handle_collisions(kind="feet", circles=feet)
+                        with prof.section("collide"):
+                            events = rock_mgr.handle_collisions(kind="feet", circles=feet)
                         hits = events.get("hits", 0)
                         if hits:
                             game_state.handle_foot_hit(i, hits)
@@ -606,8 +646,10 @@ def main() -> None:
                 # Update and draw rocks and effects
                 rock_mgr.update(max(0.0, min(dt, 0.05)))  # clamp dt for stability
                 effects.update(max(0.0, min(dt, 0.05)))
-                draw_rocks(frame, rock_mgr.rocks)
-                effects.draw(frame, fps=fps)
+                with prof.section("draw_rocks"):
+                    draw_rocks(frame, rock_mgr.rocks)
+                with prof.section("draw_fx"):
+                    effects.draw(frame, fps=fps)
 
                 # Draw scores and lives for players (P1 left, P2 right)
                 h, w = frame.shape[:2]
@@ -824,10 +866,25 @@ def main() -> None:
             prev = now
             if dt > 0:
                 fps = 0.9 * fps + 0.1 * (1.0 / dt)
-            put_fps(frame, fps)
+            with prof.section("draw_osd"):
+                put_fps(frame, fps)
+                if args.profile_osd:
+                    # Draw compact OSD lines in the top-left
+                    avg = prof.get_averages()
+                    y = 48
+                    for ln in prof.osd_lines():
+                        try:
+                            cv2.putText(frame, ln, (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (220,220,220), 1, cv2.LINE_AA)
+                        except Exception:
+                            pass
+                        y += 16
 
-            cv2.imshow(window_name, frame)
+            with prof.section("draw_camera"):
+                cv2.imshow(window_name, frame)
             key = cv2.waitKey(1) & 0xFF
+            if args.max_seconds is not None and (time.time() - run_start_ts) >= args.max_seconds:
+                break
+            prof.end_frame({"backend": "opencv"})
             if key == 27:  # Esc
                 break
             elif key in (ord('c'), ord('C')):

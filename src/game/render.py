@@ -10,7 +10,7 @@ from .pose import Circle
 import arcade
 
 
-def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift: int = 0, color: tuple[int, int, int] | None = None) -> None:
+def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift: int = 0, color: tuple[int, int, int] | None = None, prof=None) -> None:
     """OpenCV overlay for head/hands/feet circles (kept for compatibility)."""
     base_colors = {
         "head": (0, 200, 255),
@@ -28,7 +28,7 @@ def draw_circles(frame: np.ndarray, groups: Dict[str, List[Circle]], color_shift
             cv2.circle(frame, (int(c.x), int(c.y)), int(c.r), use_color, thickness, cv2.LINE_AA)
 
 
-def draw_circles_arcade(groups: Dict[str, List[Circle]], height: int, color_shift: int = 0, color: tuple[int, int, int] | None = None, thickness: float = 2.0) -> None:
+def draw_circles_arcade(groups: Dict[str, List[Circle]], height: int, color_shift: int = 0, color: tuple[int, int, int] | None = None, thickness: float = 2.0, prof=None) -> None:
     """Arcade version: draw head/hands/feet circles as outlines.
     Flip Y because Arcade's origin is bottom-left but our coordinates are top-left.
     """
