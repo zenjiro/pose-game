@@ -255,6 +255,33 @@ G) OSD（9）
   4) 取り込み解像度は 720p のほうが平均フレーム時間が短く、1080pは camera_read の増分で不利
 
 
+12.1 Arcade テキスト描画最適化 比較（10s, skip-first=1）
+- 対象CSV: runs/baseline_arcade_10s.csv（A）, runs/arcade_text_10s.csv（B）
+- 設定: Arcade, --profile, --max-seconds 10, 初期1フレームスキップ
+- 概要:
+  - A frame: 66.84 ms (14.96 fps), median 66.52 ms
+  - B frame: 69.06 ms (14.48 fps), median 68.56 ms
+  - 差分: +2.22 ms (-0.48 fps) → B が遅い（この10秒サンプル）
+- セクション別平均(ms)と frame 比:
+  - camera_read: A 1.04 (1.6%) → B 0.97 (1.4%)  Δ -0.07
+  - pose_infer: A 58.16 (87.0%) → B 56.44 (81.7%)  Δ -1.72
+  - draw_camera: A 3.44 (5.1%) → B 3.33 (4.8%)  Δ -0.11
+  - draw_pose: A 0.23 (0.3%) → B 0.35 (0.5%)  Δ +0.11
+  - draw_rocks: A 0.00 (0.0%) → B 0.10 (0.1%)  Δ +0.10
+  - collide: A 0.00 → B 0.00  Δ +0.00
+  - draw_fx: A 0.00 (0.0%) → B 0.37 (0.5%)  Δ +0.37
+  - sfx: A 0.00 → B 0.00  Δ +0.00
+  - draw_osd: A 0.70 (1.0%) → B 0.61 (0.9%)  Δ -0.08
+- 所見:
+  - Text オブジェクト化により draw_osd は僅かに改善（-0.08 ms）。pose_infer も -1.72 ms と今回サンプルではやや良化。
+  - ただし B は draw_pose/draw_rocks/draw_fx が合計 +0.58 ms。さらに計測外「other」（update系/イベント処理等）が増え、結果的に +2.22 ms の悪化。
+  - ラン内のゲーム状態（岩数やエフェクト発生）の差・未計測区間の増加が支配的で、テキスト最適化単体の効果は埋もれている可能性。
+- アクション:
+  1) 計測点の追加: update_rocks / update_fx / update_game を計測し「other」を分離。
+  2) 固定条件ベンチ: bench_render_static（固定フレーム・固定岩）でテキスト描画差分を単独評価。
+  3) 再計測: 同条件（capture/infer/duplicate固定、seedがあれば固定）で10〜30s計測・リピートし統計化。
+  4) ドキュメント化: 本比較結果をグラフ化して記録。
+
 13. 次回再開時の進め方（実験プラン）
 - 早期に --duplicate の計測を追加（2 人対戦負荷の想定）[実施済み]
   - 例（OpenCV 版）:

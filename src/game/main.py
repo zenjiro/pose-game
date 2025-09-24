@@ -196,6 +196,8 @@ def main() -> None:
                 self._prev = time.time()
                 self._cam_fail = 0
                 self.prof = get_profiler()
+                # Pre-allocate Text objects to avoid per-frame draw_text cost
+                self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 28, arcade.color.WHITE, 14)
 
             def on_update(self, dt: float):
                 now = time.time()
@@ -408,9 +410,10 @@ def main() -> None:
                     draw_rocks_arcade(self.rock_mgr.rocks, HEIGHT)
                 with self.prof.section("draw_fx"):
                     self.effects.draw_arcade(HEIGHT, fps=self.fps)
-                # Draw simple HUD: FPS
+                # Draw simple HUD: FPS (Text object to avoid per-frame alloc)
                 with self.prof.section("draw_osd"):
-                    arcade.draw_text(f"FPS: {self.fps:.1f}", 12, HEIGHT - 28, arcade.color.WHITE, 14)
+                    self.fps_text.text = f"FPS: {self.fps:.1f}"
+                    self.fps_text.draw()
                 # Optionally show profiler OSD in Arcade window title
                 if self.args.profile_osd:
                     avg = self.prof.get_averages()
