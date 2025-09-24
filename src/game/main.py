@@ -9,7 +9,7 @@ import numpy as np
 from .profiler import init_profiler, get_profiler
 
 from .camera import open_camera, list_available_cameras
-from .pose import PoseEstimator
+from .pose import PoseEstimator, Circle
 from .render import draw_circles, put_fps, draw_rocks
 from .effects import EffectsManager
 from .gameplay import RockManager
@@ -85,6 +85,8 @@ def main() -> None:
     parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV")
     parser.add_argument("--profile-osd", action="store_true", help="Overlay profiling stats (slight overhead)")
     parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
+    parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
+    parser.add_argument("--infer-skip-n", type=int, default=0, help="Skip N frames between pose inferences (reuse last result)")
     args = parser.parse_args()
 
     # Initialize profiler
@@ -208,8 +210,45 @@ def main() -> None:
                         center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
                     frame_bgr = cv2.hconcat([center, center])
                 # Pose processing
-                with self.prof.section("pose_infer"):
-                    people = self.pose.process(frame_bgr)
+                # Inference input resize and frame skipping (Arcade path)
+                h0, w0 = frame_bgr.shape[:2]
+                infer_frame = frame_bgr
+                scale_back_x = 1.0
+                scale_back_y = 1.0
+                if self.args.infer_size and self.args.infer_size > 0:
+                    short = min(w0, h0)
+                    target = int(self.args.infer_size)
+                    if target < short:
+                        if w0 <= h0:
+                            new_w = target
+                            new_h = int(h0 * (target / w0))
+                        else:
+                            new_h = target
+                            new_w = int(w0 * (target / h0))
+                        infer_frame = cv2.resize(frame_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                        scale_back_x = w0 / float(new_w)
+                        scale_back_y = h0 / float(new_h)
+                if not hasattr(self.pose, "_last_people"):
+                    self.pose._last_people = []
+                    self.pose._infer_counter = 0
+                do_infer = (self.args.infer_skip_n <= 0) or (self.pose._infer_counter % (self.args.infer_skip_n + 1) == 0)
+                if do_infer:
+                    with self.prof.section("pose_infer"):
+                        ppl = self.pose.process(infer_frame)
+                    if (scale_back_x != 1.0) or (scale_back_y != 1.0):
+                        people = []
+                        for p in ppl:
+                            newp = {"head": [], "hands": [], "feet": []}
+                            for k, lst in p.items():
+                                for c in lst:
+                                    newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
+                            people.append(newp)
+                    else:
+                        people = ppl
+                    self.pose._last_people = people
+                else:
+                    people = self.pose._last_people
+                self.pose._infer_counter += 1
 
                 # Title/game start gesture logic (same as OpenCV path)
                 if not self.game_state.game_started:
@@ -412,8 +451,47 @@ def main() -> None:
                     frame = cv2.hconcat([center, center])
 
             # Run pose detection on a clean frame BEFORE drawing any UI overlays.
-            with prof.section("pose_infer"):
-                people = pose.process(frame)
+            # Inference input resize and frame skipping
+            h0, w0 = frame.shape[:2]
+            infer_frame = frame
+            scale_back_x = 1.0
+            scale_back_y = 1.0
+            if args.infer_size and args.infer_size > 0:
+                short = min(w0, h0)
+                target = int(args.infer_size)
+                if target < short:
+                    if w0 <= h0:
+                        new_w = target
+                        new_h = int(h0 * (target / w0))
+                    else:
+                        new_h = target
+                        new_w = int(w0 * (target / h0))
+                    infer_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                    scale_back_x = w0 / float(new_w)
+                    scale_back_y = h0 / float(new_h)
+            # Stateful inference skipping on the pose object
+            if not hasattr(pose, "_last_people"):
+                pose._last_people = []
+                pose._infer_counter = 0
+            do_infer = (args.infer_skip_n <= 0) or (pose._infer_counter % (args.infer_skip_n + 1) == 0)
+            if do_infer:
+                with prof.section("pose_infer"):
+                    ppl = pose.process(infer_frame)
+                # scale back to original frame size if resized
+                if (scale_back_x != 1.0) or (scale_back_y != 1.0):
+                    people = []
+                    for p in ppl:
+                        newp = {"head": [], "hands": [], "feet": []}
+                        for k, lst in p.items():
+                            for c in lst:
+                                newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
+                        people.append(newp)
+                else:
+                    people = ppl
+                pose._last_people = people
+            else:
+                people = pose._last_people
+            pose._infer_counter += 1
 
             # Show title screen if game hasn't started
             if not game_state.game_started:
