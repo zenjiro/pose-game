@@ -359,21 +359,6 @@ G) OSD（9）
   - --capture-width/height は 1280x720 推奨
   - --tasks-model models/pose_landmarker_lite.task（delegate は CPU 前提、現環境では GPU/NNAPI は不利）
 
-12.5 ROI トラッキング試行（Arcade, duplicate, 10s, infer-size=192, OpenCL=on, skip-first=1）
-- 方式: 前フレームの人領域（関節 bbox）を拡大（--roi-margin 既定 0.6）して切り出し → 縮小推論 → 検出座標を全体に戻す。
-- 条件: --arcade --duplicate --max-seconds 10 --profile --infer-size 192 --opencl on
-- 比較: baseline（ROIなし） vs ROIあり
-  - frame_ms: 68.76 → 70.73 (+1.97 ms, -0.41 fps)
-  - pose_infer: 52.36 → 55.72 (+3.36 ms)
-  - draw_camera/draw_fx は微減だが、総合では悪化。
-- 所見:
-  - 単純な外部クロップは、MediaPipe Tasks の前処理（NORM_RECT 前提の正規化など）と整合せず、効率が落ちた可能性。
-  - VIDEO モードの内部処理と噛み合わないため、ROI は Tasks API 側に正規の形で指定できるかの調査が必要。
-- 次の打ち手:
-  1) Tasks API で ROI（normalized rect）の指定可否を調査し、可能なら正規の ROI 指定へ変更。
-  2) ROI 更新ロジックの改善（2人分カバー、マージン自動調整、ロスト時の復帰戦略）。
-  3) 現状の推奨は ROI 無効（--roi なし）。--infer-size 160/192 + --opencl on の構成を継続。
-
 15. トラッキング（任意）
 - Jira: Phase 0 完了、Phase 1/2/3 のタスクを作成（推論サイズ/頻度、capture CLI、エフェクト軽量化、Arcade Text 化、分離ベンチ）
 - Confluence: ベースライン結果・CSV・所見を記録（この plan.md の要約＋グラフ）
