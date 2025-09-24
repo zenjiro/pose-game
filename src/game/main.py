@@ -86,7 +86,8 @@ def main() -> None:
     parser.add_argument("--profile-osd", action="store_true", help="Overlay profiling stats (slight overhead)")
     parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
-    parser.add_argument("--infer-skip-n", type=int, default=0, help="Skip N frames between pose inferences (reuse last result)")
+    parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
+    parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
     args = parser.parse_args()
 
     # Initialize profiler
@@ -121,13 +122,25 @@ def main() -> None:
         cap_local = open_camera(idx_local, width=1280, height=720)
         return idx_local, cap_local
 
-    idx, cap = open_camera_at(current_cam_pos)
+    # Capture size CLI (C): allow overriding capture resolution
+    # Defaults to 1280x720 if not set
+    parser_capture_width = getattr(args, 'capture_width', None)
+    parser_capture_height = getattr(args, 'capture_height', None)
+
+    def open_camera_with_cli(pos: int):
+        idx_local = camera_indices[pos % len(camera_indices)]
+        w = int(parser_capture_width) if parser_capture_width else 1280
+        h = int(parser_capture_height) if parser_capture_height else 720
+        cap_local = open_camera(idx_local, width=w, height=h)
+        return idx_local, cap_local
+
+    idx, cap = open_camera_with_cli(current_cam_pos)
     if cap is None or not cap.isOpened():
         print(f"Error: Could not open initial camera (index={idx}). Trying other cameras...")
         opened = False
         for shift in range(1, len(camera_indices)):
             try_pos = (current_cam_pos + shift) % len(camera_indices)
-            idx_try, cap_try = open_camera_at(try_pos)
+            idx_try, cap_try = open_camera_with_cli(try_pos)
             if cap_try is not None and cap_try.isOpened():
                 idx, cap = idx_try, cap_try
                 current_cam_pos = try_pos
@@ -228,27 +241,18 @@ def main() -> None:
                         infer_frame = cv2.resize(frame_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
                         scale_back_x = w0 / float(new_w)
                         scale_back_y = h0 / float(new_h)
-                if not hasattr(self.pose, "_last_people"):
-                    self.pose._last_people = []
-                    self.pose._infer_counter = 0
-                do_infer = (self.args.infer_skip_n <= 0) or (self.pose._infer_counter % (self.args.infer_skip_n + 1) == 0)
-                if do_infer:
-                    with self.prof.section("pose_infer"):
-                        ppl = self.pose.process(infer_frame)
-                    if (scale_back_x != 1.0) or (scale_back_y != 1.0):
-                        people = []
-                        for p in ppl:
-                            newp = {"head": [], "hands": [], "feet": []}
-                            for k, lst in p.items():
-                                for c in lst:
-                                    newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
-                            people.append(newp)
-                    else:
-                        people = ppl
-                    self.pose._last_people = people
+                with self.prof.section("pose_infer"):
+                    ppl = self.pose.process(infer_frame)
+                if (scale_back_x != 1.0) or (scale_back_y != 1.0):
+                    people = []
+                    for p in ppl:
+                        newp = {"head": [], "hands": [], "feet": []}
+                        for k, lst in p.items():
+                            for c in lst:
+                                newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
+                        people.append(newp)
                 else:
-                    people = self.pose._last_people
-                self.pose._infer_counter += 1
+                    people = ppl
 
                 # Title/game start gesture logic (same as OpenCV path)
                 if not self.game_state.game_started:
@@ -469,29 +473,19 @@ def main() -> None:
                     infer_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
                     scale_back_x = w0 / float(new_w)
                     scale_back_y = h0 / float(new_h)
-            # Stateful inference skipping on the pose object
-            if not hasattr(pose, "_last_people"):
-                pose._last_people = []
-                pose._infer_counter = 0
-            do_infer = (args.infer_skip_n <= 0) or (pose._infer_counter % (args.infer_skip_n + 1) == 0)
-            if do_infer:
-                with prof.section("pose_infer"):
-                    ppl = pose.process(infer_frame)
-                # scale back to original frame size if resized
-                if (scale_back_x != 1.0) or (scale_back_y != 1.0):
-                    people = []
-                    for p in ppl:
-                        newp = {"head": [], "hands": [], "feet": []}
-                        for k, lst in p.items():
-                            for c in lst:
-                                newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
-                        people.append(newp)
-                else:
-                    people = ppl
-                pose._last_people = people
+            with prof.section("pose_infer"):
+                ppl = pose.process(infer_frame)
+            # scale back to original frame size if resized
+            if (scale_back_x != 1.0) or (scale_back_y != 1.0):
+                people = []
+                for p in ppl:
+                    newp = {"head": [], "hands": [], "feet": []}
+                    for k, lst in p.items():
+                        for c in lst:
+                            newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
+                    people.append(newp)
             else:
-                people = pose._last_people
-            pose._infer_counter += 1
+                people = ppl
 
             # Show title screen if game hasn't started
             if not game_state.game_started:
@@ -985,7 +979,7 @@ def main() -> None:
                             # Small delay to let OS release the device
                             time.sleep(0.15)
 
-                            idx_next, cap_next = open_camera_at(next_pos)
+                            idx_next, cap_next = open_camera_with_cli(next_pos)
                             if cap_next is not None and cap_next.isOpened():
                                 cap = cap_next
                                 idx = idx_next
@@ -994,7 +988,7 @@ def main() -> None:
                             else:
                                 print(f"[WARN] Could not open camera at index {camera_indices[next_pos]}. Reverting to {prev_idx}.")
                                 # Try to reopen previous camera
-                                idx_prev, cap_prev = open_camera_at(prev_pos)
+                                idx_prev, cap_prev = open_camera_with_cli(prev_pos)
                                 if cap_prev is not None and cap_prev.isOpened():
                                     cap = cap_prev
                                     idx = idx_prev

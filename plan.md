@@ -225,7 +225,7 @@ G) OSD（9）
 この plan.md に沿って、まずは「計測基盤（Phase 0）」を最優先で実装します。
 
 
-12. Phase 0 ベースライン計測 速報（2025-09-23）
+12. Phase 0 ベースライン計測 速報（2025-09-23）および追加結果（duplicate/解像度比較）
 - 実行条件（共通）
   - capture: 1280x720（open_camera()の既定値）
   - model: models/pose_landmarker_lite.task（Tasks API, multi-person）
@@ -249,30 +249,31 @@ G) OSD（9）
   - 注意: arcade.draw_text に PerformanceWarning（Text オブジェクト利用推奨）
 
 - まとめ（現時点の所見）
-  1) 姿勢推定が最大ボトルネック（約 57〜62 ms/フレーム）
-  2) OpenCV 版のエフェクト描画がスパイク要因（50 ms 級）
+  1) 姿勢推定が最大ボトルネック（約 57〜62 ms/フレーム）。duplicate（2人）時も支配的
+  2) OpenCV 版のエフェクト描画がスパイク要因（50 ms 級）があるため、FPS閾値連動の抑制が有効候補
   3) 描画（カメラ背景/〇/岩/OSD）は Arcade 版のほうが若干有利
+  4) 取り込み解像度は 720p のほうが平均フレーム時間が短く、1080pは camera_read の増分で不利
 
 
 13. 次回再開時の進め方（実験プラン）
-- 早期に --duplicate の計測を追加（2 人対戦負荷の想定）
+- 早期に --duplicate の計測を追加（2 人対戦負荷の想定）[実施済み]
   - 例（OpenCV 版）:
     - uv run python -m game.main --profile --profile-csv runs/opencv_dup_10s.csv --max-seconds 10 --duplicate
   - 例（Arcade 版）:
     - uv run python -m game.main --arcade --profile --profile-csv runs/arcade_dup_10s.csv --max-seconds 10 --duplicate
   - 目的: 2 人時の描画・当たり判定・エフェクト増加の影響を早期に把握
 
-- Phase 1（推論最適化）をすぐ測れる仕掛けの追加
+- Phase 1（推論最適化）をすぐ測れる仕掛けの追加（頻度間引きは採用しない方針）
   - CLI を追加
     - --infer-size {128,160,192,224,256}（推論入力の縮小）
-    - --infer-skip-n {0,1,2,...}（n フレームごとに 1 回だけ推論）
+    - 推論は毎フレーム実行（ゲーム性を重視し、間引きはしない）
   - スイープの実行と CSV 収集
     - 固定条件: capture=720p, --duplicate の有無それぞれで比較
     - 期待: pose_infer を 30〜40 ms 台以下に抑え、全体 30 FPS 付近を狙う
 
-- capture 解像度を CLI 化
-  - --capture-width/--capture-height を追加し、720p/1080p の比較を容易に
-  - 描画解像度は変えない（要件どおり）。取り込みは FHD/720p を使い分ける
+- capture 解像度を CLI 化 [実装済み]
+  - --capture-width/--capture-height で 720p/1080p の比較が容易に
+  - 描画解像度は変えない（要件どおり）。取り込みは FHD/720p を使い分ける（現状では720pの方が有利）
 
 - エフェクト描画のスパイク対策（OpenCV 版）
   - 既存の fps_threshold_for_glow=10.0 を 18〜20 へ一時的に引き上げて検証（12〜16 FPS 帯では glow を抑止）
