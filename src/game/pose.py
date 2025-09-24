@@ -40,13 +40,11 @@ class PoseEstimator:
         smooth_landmarks: bool = True,
         max_people: int = 2,
         tasks_model: Optional[str] = None,
-        tasks_mode: Optional[str] = "video",
     ) -> None:
         self.max_people = max(1, int(max_people))
         # tasks_model: path to a MediaPipe Tasks pose landmarker model file (tflite/task file).
         # If None, we won't attempt to initialize the Tasks API even if available.
         self._tasks_model = tasks_model
-        self._tasks_mode = (tasks_mode or "video").lower()
         print(f"[DEBUG] PoseEstimator.__init__: requested max_people={max_people} normalized={self.max_people} TASKS_AVAILABLE={TASKS_AVAILABLE} tasks_model={'provided' if tasks_model else 'none'}")
         self._single = None
         self._multi = None
@@ -61,61 +59,35 @@ class PoseEstimator:
             base_options = mp_python.BaseOptions(model_asset_path=self._tasks_model)
             # Try to construct PoseLandmarkerOptions with tracking option first.
             try:
-                mode_map = {
-                    "image": getattr(mp_vision.RunningMode, "IMAGE", None),
-                    "video": getattr(mp_vision.RunningMode, "VIDEO", None),
-                    "live": getattr(mp_vision.RunningMode, "LIVE_STREAM", None),
-                }
-                run_mode = mode_map.get(self._tasks_mode, getattr(mp_vision.RunningMode, "VIDEO", None))
-                kwargs = dict(
+                options = mp_vision.PoseLandmarkerOptions(
                     base_options=base_options,
-                    running_mode=run_mode,
+                    running_mode=mp_vision.RunningMode.VIDEO,
                     num_poses=self.max_people,
                     min_pose_detection_confidence=min_detection_confidence,
+                    min_pose_tracking_confidence=min_tracking_confidence,
                 )
-                # tracking conf may not be supported in some versions
-                try:
-                    kwargs["min_pose_tracking_confidence"] = min_tracking_confidence
-                except Exception:
-                    pass
-                # LIVE_STREAM requires a callback
-                if run_mode == getattr(mp_vision.RunningMode, "LIVE_STREAM", None):
-                    # define callback
-                    def _cb(result, output_image, timestamp_ms):
-                        try:
-                            h_oi = None; w_oi = None
-                            try:
-                                h_oi = getattr(output_image, "height", None)
-                                w_oi = getattr(output_image, "width", None)
-                            except Exception:
-                                pass
-                            if (h_oi is None) or (w_oi is None):
-                                try:
-                                    arr = output_image.numpy_view()
-                                    h_oi, w_oi = arr.shape[:2]
-                                except Exception:
-                                    h_oi = w_oi = None
-                            people_live = []
-                            if getattr(result, "pose_landmarks", None):
-                                for lms in result.pose_landmarks:
-                                    if h_oi is not None and w_oi is not None:
-                                        people_live.append(self._extract_person(lms, w_oi, h_oi))
-                            self._last_people = people_live
-                        except Exception:
-                            pass
-                    kwargs["result_callback"] = _cb
-                options = mp_vision.PoseLandmarkerOptions(**kwargs)
                 self._multi = mp_vision.PoseLandmarker.create_from_options(options)
-            except Exception:
-                # Failure creating the Tasks API object; leave self._multi as None
-                # and fall through to initialize the single-person API.
-                import traceback as _tb
-                self._multi = None
-                print("[DEBUG] PoseEstimator: Tasks API initialization failed, will fall back to Solutions API")
+            except TypeError:
+                # Some versions of the Tasks API don't accept min_pose_tracking_confidence.
+                # Retry without the tracking option.
                 try:
-                    _tb.print_exc()
+                    options = mp_vision.PoseLandmarkerOptions(
+                        base_options=base_options,
+                        running_mode=mp_vision.RunningMode.VIDEO,
+                        num_poses=self.max_people,
+                        min_pose_detection_confidence=min_detection_confidence,
+                    )
+                    self._multi = mp_vision.PoseLandmarker.create_from_options(options)
                 except Exception:
-                    print("[DEBUG] Could not print traceback for Tasks API init failure")
+                    # Failure creating the Tasks API object; leave self._multi as None
+                    # and fall through to initialize the single-person API.
+                    import traceback as _tb
+                    self._multi = None
+                    print("[DEBUG] PoseEstimator: Tasks API initialization failed, will fall back to Solutions API")
+                    try:
+                        _tb.print_exc()
+                    except Exception:
+                        print("[DEBUG] Could not print traceback for Tasks API init failure")
 
         elif TASKS_AVAILABLE and self.max_people > 1 and not self._tasks_model:
             # Tasks API is available but no model was provided.

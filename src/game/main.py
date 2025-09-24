@@ -84,6 +84,8 @@ def main() -> None:
     parser.add_argument("--profile", action="store_true", help="Enable frame profiling")
     parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV")
     parser.add_argument("--profile-osd", action="store_true", help="Overlay profiling stats (slight overhead)")
+    parser.add_argument("--roi", action="store_true", help="Use ROI tracking for inference (crop around previous detections)")
+    parser.add_argument("--roi-margin", type=float, default=0.6, help="Margin multiplier for ROI bbox (e.g., 0.6 => +60% in width/height)")
     parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
@@ -246,6 +248,23 @@ def main() -> None:
                 infer_frame = frame_bgr
                 scale_back_x = 1.0
                 scale_back_y = 1.0
+                roi_applied = False
+                roi_offset_x = 0
+                roi_offset_y = 0
+                # Use ROI from previous frame if enabled and available
+                if getattr(self.args, 'roi', False) and hasattr(self, 'roi_rect') and self.roi_rect is not None:
+                    x0, y0, x1, y1 = self.roi_rect
+                    x0 = max(0, min(w0-1, int(x0)))
+                    y0 = max(0, min(h0-1, int(y0)))
+                    x1 = max(x0+1, min(w0, int(x1)))
+                    y1 = max(y0+1, min(h0, int(y1)))
+                    crop = frame_bgr[y0:y1, x0:x1]
+                    if crop.size > 0:
+                        infer_frame = crop
+                        roi_applied = True
+                        roi_offset_x = x0
+                        roi_offset_y = y0
+                        h0, w0 = infer_frame.shape[:2]
                 # Apply infer_size on chosen input (full or ROI)
                 if self.args.infer_size and self.args.infer_size > 0:
                     short = min(w0, h0)
@@ -264,18 +283,47 @@ def main() -> None:
                     ppl = self.pose.process(infer_frame)
                 # Map detections back to full frame coords
                 people = []
-                if (scale_back_x != 1.0) or (scale_back_y != 1.0):
+                if roi_applied or (scale_back_x != 1.0) or (scale_back_y != 1.0):
                     for p in ppl:
                         newp = {"head": [], "hands": [], "feet": []}
                         for k, lst in p.items():
                             for c in lst:
-                                x = int(c.x * scale_back_x)
-                                y = int(c.y * scale_back_y)
+                                x = int(c.x * scale_back_x + roi_offset_x)
+                                y = int(c.y * scale_back_y + roi_offset_y)
                                 r = int(c.r * (scale_back_x + scale_back_y) * 0.5)
                                 newp[k].append(Circle(x, y, r))
                         people.append(newp)
                 else:
                     people = ppl
+                # Update ROI for next frame
+                if getattr(self.args, 'roi', False):
+                    def _bbox_from_people(plist):
+                        minx, miny, maxx, maxy = w0, h0, 0, 0
+                        found = False
+                        for p in plist:
+                            for k in ("head","hands","feet"):
+                                for c in p.get(k, []):
+                                    minx = min(minx, c.x); miny = min(miny, c.y)
+                                    maxx = max(maxx, c.x); maxy = max(maxy, c.y)
+                                    found = True
+                        if not found:
+                            return None
+                        return (minx, miny, maxx, maxy)
+                    bbox = _bbox_from_people(people)
+                    if bbox is not None:
+                        mx = float(self.args.roi_margin) if hasattr(self.args, 'roi_margin') else 0.6
+                        cx = (bbox[0] + bbox[2]) * 0.5; cy = (bbox[1] + bbox[3]) * 0.5
+                        bw = max(1.0, (bbox[2] - bbox[0]) * (1.0 + mx))
+                        bh = max(1.0, (bbox[3] - bbox[1]) * (1.0 + mx))
+                        x0n = int(max(0, cx - bw*0.5)); y0n = int(max(0, cy - bh*0.5))
+                        x1n = int(min(frame_bgr.shape[1], cx + bw*0.5)); y1n = int(min(frame_bgr.shape[0], cy + bh*0.5))
+                        self.roi_rect = (x0n, y0n, x1n, y1n)
+                        self.roi_lost = 0
+                    else:
+                        # If lost, clear ROI to fall back to full-frame next time
+                        self.roi_lost = getattr(self, 'roi_lost', 0) + 1
+                        if self.roi_lost >= 1:
+                            self.roi_rect = None
 
                 # Title/game start gesture logic (same as OpenCV path)
                 if not self.game_state.game_started:
@@ -479,11 +527,27 @@ def main() -> None:
                     frame = cv2.hconcat([center, center])
 
             # Run pose detection on a clean frame BEFORE drawing any UI overlays.
-            # Inference input resize (OpenCV path)
+            # Inference input resize and optional ROI tracking (OpenCV path)
             h0, w0 = frame.shape[:2]
             infer_frame = frame
             scale_back_x = 1.0
             scale_back_y = 1.0
+            roi_applied = False
+            roi_offset_x = 0
+            roi_offset_y = 0
+            if getattr(args, 'roi', False) and hasattr(prof, 'roi_rect') and getattr(prof, 'roi_rect', None) is not None:
+                x0, y0, x1, y1 = getattr(prof, 'roi_rect')
+                x0 = max(0, min(w0-1, int(x0)))
+                y0 = max(0, min(h0-1, int(y0)))
+                x1 = max(x0+1, min(w0, int(x1)))
+                y1 = max(y0+1, min(h0, int(y1)))
+                crop = frame[y0:y1, x0:x1]
+                if crop.size > 0:
+                    infer_frame = crop
+                    roi_applied = True
+                    roi_offset_x = x0
+                    roi_offset_y = y0
+                    h0, w0 = infer_frame.shape[:2]
             if args.infer_size and args.infer_size > 0:
                 short = min(w0, h0)
                 target = int(args.infer_size)
