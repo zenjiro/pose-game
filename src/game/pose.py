@@ -55,7 +55,7 @@ class PoseEstimator:
         # and a model path was explicitly provided.
         if TASKS_AVAILABLE and self.max_people > 1 and self._tasks_model:
             print("[DEBUG] PoseEstimator: attempting to initialize Tasks API for multi-person detection")
-            # Build BaseOptions (use built-in model by leaving model_asset_path=None)
+            # BaseOptions（delegate 指定なし）
             base_options = mp_python.BaseOptions(model_asset_path=self._tasks_model)
             # Try to construct PoseLandmarkerOptions with tracking option first.
             try:

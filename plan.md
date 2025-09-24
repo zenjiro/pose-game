@@ -342,6 +342,23 @@ G) OSD（9）
   - Arcade:  uv run python -m game.main --arcade --profile --profile-csv runs/arcade_skip2.csv --max-seconds 10 --infer-skip-n 2
 
 
+12.3 OpenCL 比較（Arcade, duplicate, 10s, infer-size=192, skip-first=1）
+- 条件: --arcade --duplicate --max-seconds 10 --profile --infer-size 192
+- 比較: --opencl off vs on
+  - off → on: frame_ms 70.94 → 68.76 (-2.18 ms, +0.45 fps)
+  - pose_infer 54.23 → 52.36 (-1.87 ms)
+  - draw_pose/draw_fx にも改善傾向（ばらつき要素あり）。
+- 所見:
+  - この環境では OpenCL=on が有利。前処理（cvtColor/resize 等）で効いている可能性。
+  - 推奨設定プリセットに OpenCL=on を含める。
+
+12.4 推奨設定プリセット（現時点）
+- Arcade + duplicate 想定の軽量構成（30 FPS へ向けた暫定）
+  - --infer-size 160 または 192（品質と速度のバランスで選定）
+  - --opencl on（今回の環境では有利）
+  - --capture-width/height は 1280x720 推奨
+  - --tasks-model models/pose_landmarker_lite.task（delegate は CPU 前提、現環境では GPU/NNAPI は不利）
+
 15. トラッキング（任意）
 - Jira: Phase 0 完了、Phase 1/2/3 のタスクを作成（推論サイズ/頻度、capture CLI、エフェクト軽量化、Arcade Text 化、分離ベンチ）
 - Confluence: ベースライン結果・CSV・所見を記録（この plan.md の要約＋グラフ）

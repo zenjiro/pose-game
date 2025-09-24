@@ -88,7 +88,23 @@ def main() -> None:
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
     parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
+    parser.add_argument("--opencl", choices=["auto", "on", "off"], default="auto", help="Enable/disable OpenCV OpenCL acceleration (default: auto)")
     args = parser.parse_args()
+
+    # Optionally toggle OpenCV OpenCL
+    try:
+        if args.opencl != "auto":
+            cv2.ocl.setUseOpenCL(True if args.opencl == "on" else False)
+        have = False
+        use = False
+        try:
+            have = bool(cv2.ocl.haveOpenCL())
+            use = bool(cv2.ocl.useOpenCL())
+        except Exception:
+            pass
+        print(f"[INFO] OpenCL have={have} use={use} (arg={args.opencl})")
+    except Exception as e:
+        print(f"[WARN] OpenCL toggle failed: {e}")
 
     # Initialize profiler
     init_profiler(enabled=bool(args.profile), csv_path=args.profile_csv)
