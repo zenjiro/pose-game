@@ -316,6 +316,20 @@ G) OSD（9）
   - scripts/bench_render_static.py（固定フレームで描画のみ、OpenCV/Arcade）
 
 
+12.2 推論入力サイズスイープ（Arcade, duplicate, 10s, skip-first=1）
+- 条件: --arcade, --duplicate, --max-seconds 10, --profile, --infer-size {160,192,224}
+- コマンド例:
+  - uv run python -m game.main --arcade --profile --profile-csv runs/arcade_dup_size160_10s.csv --max-seconds 10 --infer-size 160 --duplicate
+  - uv run python -m game.main --arcade --profile --profile-csv runs/arcade_dup_size192_10s.csv --max-seconds 10 --infer-size 192 --duplicate
+  - uv run python -m game.main --arcade --profile --profile-csv runs/arcade_dup_size224_10s.csv --max-seconds 10 --infer-size 224 --duplicate
+- 比較（scripts/compare_profiles.py を使用、--skip-first 1）
+  - 160 vs 192: frame_ms 72.92 → 73.25 (+0.32), pose_infer 56.88 → 56.77 (-0.12) ほぼ同等（192が僅かに良いサンプル）。
+  - 192 vs 224: frame_ms 73.25 → 77.63 (+4.38), pose_infer 56.77 → 60.90 (+4.13) 明確に224が悪化。
+- 所見:
+  - duplicate（2人）条件では 160/192 が有力、224 は悪化。
+  - pose_infer 支配は変わらず。入力を上げるほど直線的に悪化。
+  - 160 と 192 は再計測で逆転もあり得るため、検出品質（見た目）と合わせて選定。
+
 14. 推奨実行レシピ（次回計測用コマンド例）
 - ベースライン + duplicate
   - OpenCV:  uv run python -m game.main --profile --profile-csv runs/opencv_dup_10s.csv --max-seconds 10 --duplicate
