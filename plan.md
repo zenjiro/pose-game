@@ -203,10 +203,10 @@ G) OSD（9）
 
 
 11. 次アクション（実装タスク詳細）
-- [ ] P0-1: profiler.py の実装（with 区間、集計、CSV、OSD）
-- [ ] P0-2: main/render/pose/collision へ最小フック配置
-- [ ] P0-3: uv script 追加（bench_* 起動）
-- [ ] P0-4: ベースライン測定（OpenCV/Arcade、FHD/720p、rocks=100）
+- [x] P0-1: profiler.py の実装（with 区間、集計、CSV、OSD）
+- [x] P0-2: main/render/pose/collision へ最小フック配置
+- [x] P0-3: uv script 追加（bench_* 起動）
+- [x] P0-4: ベースライン測定（OpenCV/Arcade、FHD/720p、rocks=100）
 - [ ] P1-1: 推論入力縮小スイープ
 - [ ] P1-2: 推論スキップ導入
 - [ ] P2-1: Capture/Infer のスレッド化 + 最新優先キュー
