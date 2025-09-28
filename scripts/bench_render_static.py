@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 def run_benchmark(backend: str, seconds: float, skip_first: int, infer_size: int, 
-                 optimized: bool = False, duplicate: bool = False) -> str:
+                 legacy: bool = False, duplicate: bool = False) -> str:
     """Run a single benchmark and return the CSV path."""
     
     base_cmd = [
@@ -37,15 +37,15 @@ def run_benchmark(backend: str, seconds: float, skip_first: int, infer_size: int
         print("Warning: OpenCV backend not currently supported in main.py. Using Arcade.")
         backend = "arcade"
     
-    # Optimization flags
-    if optimized:
-        base_cmd.append("--optimized-rendering")
+    # Rendering mode flags (optimized is now default)
+    if legacy:
+        base_cmd.append("--legacy-rendering")
     
     if duplicate:
         base_cmd.append("--duplicate")
     
     # Output CSV
-    suffix = f"{'_dup' if duplicate else ''}{'_opt' if optimized else ''}"
+    suffix = f"{'_dup' if duplicate else ''}{'_legacy' if legacy else ''}"
     out_csv = f"runs/{backend}_render_static{suffix}_{int(seconds)}s.csv"
     base_cmd += ["--profile-csv", out_csv]
     
@@ -87,12 +87,12 @@ def main() -> None:
     ap.add_argument("--seconds", type=float, default=10.0)
     ap.add_argument("--skip-first", type=int, default=1)
     ap.add_argument("--infer-size", type=int, default=192)
-    ap.add_argument("--optimized", action="store_true", 
-                   help="Use optimized rendering (SpriteList/Geometry)")
+    ap.add_argument("--legacy", action="store_true", 
+                   help="Use legacy individual draw calls instead of optimized rendering")
     ap.add_argument("--duplicate", action="store_true", 
                    help="Use duplicate mode (2 players)")
     ap.add_argument("--compare", action="store_true",
-                   help="Run A/B comparison between optimized and non-optimized")
+                   help="Run A/B comparison between optimized (default) and legacy rendering")
     ap.add_argument("--all-backends", action="store_true",
                    help="Test both OpenCV and Arcade backends")
     args = ap.parse_args()
@@ -106,28 +106,27 @@ def main() -> None:
         # Run A/B comparison for the specified backend
         print(f"Running A/B comparison for {args.backend} backend")
         
-        # Run non-optimized version
+        # Run optimized version (now default)
         csv_a = run_benchmark(args.backend, args.seconds, args.skip_first, 
-                             args.infer_size, optimized=False, duplicate=args.duplicate)
+                             args.infer_size, legacy=False, duplicate=args.duplicate)
         csv_files.append(csv_a)
         
-        # Run optimized version (only for Arcade)
-        if args.backend == "arcade":
-            csv_b = run_benchmark(args.backend, args.seconds, args.skip_first, 
-                                 args.infer_size, optimized=True, duplicate=args.duplicate)
-            csv_files.append(csv_b)
+        # Run legacy version for comparison
+        csv_b = run_benchmark(args.backend, args.seconds, args.skip_first, 
+                             args.infer_size, legacy=True, duplicate=args.duplicate)
+        csv_files.append(csv_b)
         
     elif args.all_backends:
         # Test both backends
         for backend in ["opencv", "arcade"]:
             csv_file = run_benchmark(backend, args.seconds, args.skip_first, 
-                                   args.infer_size, optimized=args.optimized, 
+                                   args.infer_size, legacy=args.legacy, 
                                    duplicate=args.duplicate)
             csv_files.append(csv_file)
     else:
         # Single benchmark run
         csv_file = run_benchmark(args.backend, args.seconds, args.skip_first, 
-                               args.infer_size, optimized=args.optimized, 
+                               args.infer_size, legacy=args.legacy, 
                                duplicate=args.duplicate)
         csv_files.append(csv_file)
     
