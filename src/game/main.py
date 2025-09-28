@@ -233,8 +233,8 @@ def main() -> None:
                 # Pre-allocate Text objects to avoid per-frame draw_text cost
                 self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 28, arcade.color.WHITE, 14)
                 # Event messages (head hits / hand hits)
-                self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (20, 20, 230), 16)
-                self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 16)
+                self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (20, 20, 230), 32)
+                self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32)
                 self._head_msg_until = 0.0
                 self._hand_msg_until = 0.0
 
@@ -474,15 +474,15 @@ def main() -> None:
                         # Positions
                         margin = 12
                         # Timer centered at top
-                        self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 36, arcade.color.WHITE, 18, anchor_x="center")
+                        self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 36, arcade.color.WHITE, 36, anchor_x="center")
                         # P1 left
-                        self.p1_score_text = arcade.Text("P1 Score: 0", margin, HEIGHT - 60, (255, 0, 0), 14)
-                        self.p1_lives_text = arcade.Text("P1 Lives: 5", margin, HEIGHT - 80, arcade.color.WHITE, 12)
+                        self.p1_score_text = arcade.Text("P1 Score: 0", margin, HEIGHT - 60, (255, 0, 0), 28)
+                        self.p1_lives_text = arcade.Text("P1 Lives: 5", margin, HEIGHT - 80, arcade.color.WHITE, 24)
                         # P2 right (right-aligned)
-                        self.p2_score_text = arcade.Text("P2 Score: 0", WIDTH - margin, HEIGHT - 60, (0, 0, 255), 14, anchor_x="right")
-                        self.p2_lives_text = arcade.Text("P2 Lives: 5", WIDTH - margin, HEIGHT - 80, arcade.color.WHITE, 12, anchor_x="right")
+                        self.p2_score_text = arcade.Text("P2 Score: 0", WIDTH - margin, HEIGHT - 60, (0, 0, 255), 28, anchor_x="right")
+                        self.p2_lives_text = arcade.Text("P2 Lives: 5", WIDTH - margin, HEIGHT - 80, arcade.color.WHITE, 24, anchor_x="right")
                         # FPS at top-left below timer
-                        self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 28, arcade.color.WHITE, 14)
+                        self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 28, arcade.color.WHITE, 28)
                         self.hud_texts = [
                             self.timer_text,
                             self.p1_score_text, self.p1_lives_text,
