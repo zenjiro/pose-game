@@ -241,10 +241,14 @@ def main() -> None:
             # Event messages (head hits / hand hits)
             self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (230, 20, 20), 32, font_name=self.arcade_font_name)
             self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32, font_name=self.arcade_font_name)
+            # Create outline texts for event messages (not for FPS as it changes frequently)
+            self.head_msg_outline_texts = self._create_outline_texts(self.head_msg_text)
+            self.hand_msg_outline_texts = self._create_outline_texts(self.hand_msg_text)
             self._head_msg_until = 0.0
             self._hand_msg_until = 0.0
             # Title screen texts (lazy initialized)
             self._title_texts = None
+            self._title_outline_texts = None
             # Guard to disable text rendering if pyglet/DirectWrite misbehaves
             self._text_ok = True
             # On Windows, prefer PIL-based text overlay to avoid pyglet DirectWrite issues
@@ -298,6 +302,8 @@ def main() -> None:
                     line2 = arcade.Text("あしで　いわを　けって　スコアを　かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
                     hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center", font_name=self.arcade_font_name)
                     self._title_texts = (title, line1, line2, hint)
+                    # Create outline texts for title screen
+                    self._title_outline_texts = tuple(self._create_outline_texts(text) for text in self._title_texts)
                 
                 if any_hand_above_head(people):
                     if gesture_hold_start is None:
@@ -504,18 +510,16 @@ def main() -> None:
             except Exception:
                 pass
 
-        def _draw_text_with_outline(self, text_obj, outline_color=(0, 0, 0), outline_width=2):
-            """Draw an arcade.Text with a black outline approximated by 4-offset draws.
-            This mimics the OpenCV path's outlined text. Width is fixed in pixels.
-            """
+        def _create_outline_texts(self, text_obj, outline_color=(0, 0, 0), outline_width=2):
+            """Create outline Text objects for a given text object."""
             if text_obj is None:
-                return
+                return []
+            
             try:
                 # Extract properties with sensible fallbacks
                 txt = getattr(text_obj, 'text', '')
                 x = float(getattr(text_obj, 'x', getattr(text_obj, 'start_x', 0)))
                 y = float(getattr(text_obj, 'y', getattr(text_obj, 'start_y', 0)))
-                color = getattr(text_obj, 'color', (255, 255, 255))
                 font_size = int(getattr(text_obj, 'font_size', 12))
                 width = int(getattr(text_obj, 'width', 0) or 0)
                 align = getattr(text_obj, 'align', 'left')
@@ -526,11 +530,12 @@ def main() -> None:
                 anchor_y = getattr(text_obj, 'anchor_y', 'baseline')
                 rotation = float(getattr(text_obj, 'rotation', 0.0))
 
+                outline_texts = []
                 # Eight-direction outline for smoother text outlining
                 for dx, dy in ((-outline_width, 0), (outline_width, 0), (0, -outline_width), (0, outline_width),
                                (-outline_width, -outline_width), (outline_width, -outline_width), 
                                (-outline_width, outline_width), (outline_width, outline_width)):
-                    arcade.draw_text(
+                    outline_text = arcade.Text(
                         txt, x + dx, y + dy,
                         outline_color,
                         font_size,
@@ -543,20 +548,48 @@ def main() -> None:
                         anchor_y=anchor_y,
                         rotation=rotation,
                     )
-                # Main text
-                arcade.draw_text(
-                    txt, x, y,
-                    color,
-                    font_size,
-                    width=width,
-                    align=align,
-                    font_name=font_name,
-                    bold=bold,
-                    italic=italic,
-                    anchor_x=anchor_x,
-                    anchor_y=anchor_y,
-                    rotation=rotation,
-                )
+                    outline_texts.append(outline_text)
+                return outline_texts
+            except Exception:
+                return []
+
+        def _update_outline_texts(self, outline_texts, text_obj, outline_width=2):
+            """Update existing outline Text objects with new text and position."""
+            if not outline_texts or text_obj is None:
+                return
+            
+            try:
+                # Extract properties
+                txt = getattr(text_obj, 'text', '')
+                x = float(getattr(text_obj, 'x', getattr(text_obj, 'start_x', 0)))
+                y = float(getattr(text_obj, 'y', getattr(text_obj, 'start_y', 0)))
+
+                # Update outline text positions and content
+                directions = [(-outline_width, 0), (outline_width, 0), (0, -outline_width), (0, outline_width),
+                             (-outline_width, -outline_width), (outline_width, -outline_width), 
+                             (-outline_width, outline_width), (outline_width, outline_width)]
+                
+                for i, (dx, dy) in enumerate(directions):
+                    if i < len(outline_texts):
+                        outline_texts[i].text = txt
+                        outline_texts[i].x = x + dx
+                        outline_texts[i].y = y + dy
+            except Exception:
+                pass
+
+        def _draw_text_with_outline(self, text_obj, outline_texts=None, outline_color=(0, 0, 0), outline_width=2):
+            """Draw an arcade.Text with a black outline using pre-allocated Text objects."""
+            if text_obj is None:
+                return
+            try:
+                # Draw outline texts if provided
+                if outline_texts:
+                    self._update_outline_texts(outline_texts, text_obj, outline_width)
+                    for outline_text in outline_texts:
+                        outline_text.draw()
+                
+                # Draw main text
+                text_obj.draw()
             except Exception as e:
                 # Fall back to default draw if our manual path fails
                 try:
@@ -564,11 +597,11 @@ def main() -> None:
                 except Exception:
                     raise e
 
-        def _safe_draw_text(self, text_obj):
+        def _safe_draw_text(self, text_obj, outline_texts=None):
             if not getattr(self, '_text_ok', True):
                 return
             try:
-                self._draw_text_with_outline(text_obj, outline_color=(0, 0, 0), outline_width=2)
+                self._draw_text_with_outline(text_obj, outline_texts, outline_color=(0, 0, 0), outline_width=2)
             except Exception as e:
                 print(f"[Arcade] Text draw disabled due to error: {e}")
                 self._text_ok = False
@@ -624,6 +657,15 @@ def main() -> None:
                         self.p2_score_text, self.p2_lives_text,
                         self.fps_text,
                     ]
+                    # Create outline texts for HUD elements (except FPS which changes frequently)
+                    self.hud_outline_texts = [
+                        self._create_outline_texts(self.timer_text),
+                        self._create_outline_texts(self.p1_score_text), 
+                        self._create_outline_texts(self.p1_lives_text),
+                        self._create_outline_texts(self.p2_score_text), 
+                        self._create_outline_texts(self.p2_lives_text),
+                        []  # Empty for FPS text
+                    ]
                 # Update dynamic texts
                 # Timer
                 if self.game_state.game_started and not self.game_state.game_over:
@@ -647,19 +689,21 @@ def main() -> None:
                 # FPS
                 self.fps_text.text = f"FPS: {self.fps:.1f}"
                 # Draw all HUD texts
-                for t in self.hud_texts:
-                    self._safe_draw_text(t)
+                for i, t in enumerate(self.hud_texts):
+                    outline_texts = self.hud_outline_texts[i] if i < len(self.hud_outline_texts) else None
+                    self._safe_draw_text(t, outline_texts)
             # Draw transient event messages (similar to OpenCV OSD)
             now_t = time.time()
             if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
-                self._safe_draw_text(self.head_msg_text)
+                self._safe_draw_text(self.head_msg_text, self.head_msg_outline_texts)
             if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
-                self._safe_draw_text(self.hand_msg_text)
+                self._safe_draw_text(self.hand_msg_text, self.hand_msg_outline_texts)
             # Optionally show profiler OSD in Arcade window title
             # Draw title screen texts if game hasn't started
             if not self.game_state.game_started and self._title_texts is not None:
-                for t in self._title_texts:
-                    self._safe_draw_text(t)
+                for i, t in enumerate(self._title_texts):
+                    outline_texts = self._title_outline_texts[i] if i < len(self._title_outline_texts) else None
+                    self._safe_draw_text(t, outline_texts)
             
             # Draw game over screen
             if self.game_state.game_over:
@@ -680,13 +724,19 @@ def main() -> None:
                         "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
                         "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, (100, 255, 100), 26, anchor_x="center", font_name=self.arcade_font_name)
                     }
+                    # Create outline texts for game over screen
+                    self.game_over_outline_texts = {
+                        "left": self._create_outline_texts(self.game_over_texts["left"]),
+                        "right": self._create_outline_texts(self.game_over_texts["right"]),
+                        "restart": self._create_outline_texts(self.game_over_texts["restart"])
+                    }
                 
                 self.game_over_texts["left"].text = left_msg
                 self.game_over_texts["right"].text = right_msg
                 
-                self._safe_draw_text(self.game_over_texts["left"])
-                self._safe_draw_text(self.game_over_texts["right"])
-                self._safe_draw_text(self.game_over_texts["restart"])
+                self._safe_draw_text(self.game_over_texts["left"], self.game_over_outline_texts["left"])
+                self._safe_draw_text(self.game_over_texts["right"], self.game_over_outline_texts["right"])
+                self._safe_draw_text(self.game_over_texts["restart"], self.game_over_outline_texts["restart"])
 
             if self.args.profile_osd:
                 avg = self.prof.get_averages()
