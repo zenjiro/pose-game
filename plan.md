@@ -394,6 +394,37 @@ G) OSD（9）
   - Render-only モード（カメラ/推論を凍結）で draw_* の純粋コストを隔離
   - duplicate 条件/20〜30s で再計測し、draw_* 合計と frame_ms を比較
 
+12.6 20秒比較: --arcade/--pipeline 組合せ（2025-09-28, skip-first=1）
+- 条件: --max-seconds 20, --profile, 比較時 --skip-first 1。capture: 1280x720、model: models/pose_landmarker_lite.task、players: 通常（--duplicate なし）
+- 出力CSV:
+  - runs/opencv_no_pipeline_20s.csv
+  - runs/opencv_pipeline_20s.csv
+  - runs/arcade_no_pipeline_20s.csv
+  - runs/arcade_pipeline_20s.csv
+- サマリ（平均 frame_ms → FPS, frames）:
+  - OpenCV / no pipeline: 103.14 ms → 9.70 fps, frames=150
+  - OpenCV / pipeline:    70.49 ms → 14.19 fps, frames=219
+  - Arcade / no pipeline: 77.67 ms → 12.88 fps, frames=253
+  - Arcade / pipeline:    25.42 ms → 39.33 fps, frames=764
+- ペア比較（scripts/compare_profiles.py --skip-first 1）:
+  - OpenCV: pipeline あり vs なし → Δ -32.65 ms（+4.49 fps）→ faster
+    - pose_infer: 62.80 → 0.01 ms（推論を別スレッド化し、メイン側からほぼ消える）
+    - draw_fx:    20.11 → 44.19 ms（相対比率が増加。OpenCV 側ではエフェクト描画が支配的になりやすい）
+  - Arcade: pipeline あり vs なし → Δ -52.24 ms（+26.46 fps）→ faster
+    - pose_infer: 58.18 → 0.01 ms
+    - draw_osd:    8.38 → 11.54 ms（Arcade のテキスト描画が相対的に目立つ）
+  - Backend（no pipeline）OpenCV → Arcade → Δ -25.47 ms（+3.18 fps）→ Arcade faster
+    - draw_fx:    20.11 → 1.21 ms（Arcade の GPU 描画が有利）
+    - draw_camera: 0.74 → 3.69 ms, draw_osd: 0.24 → 8.38 ms
+  - Backend（pipeline）OpenCV → Arcade → Δ -45.07 ms（+25.15 fps）→ Arcade faster
+    - draw_fx:    44.19 → 1.06 ms（Arcade が圧倒的に軽い）
+    - draw_camera: 0.97 → 4.93 ms, draw_osd: 0.29 → 11.54 ms
+- 所見/結論:
+  1) 最速は Arcade + pipeline（約 39.3 FPS）。
+  2) pipeline 化の効果が非常に大きい（pose_infer をメインスレッドから排除）。
+  3) OpenCV は draw_fx がボトルネック化しやすい。Arcade は draw_osd が相対的に重い。
+  4) 次アクションは Arcade 側 HUD テキスト最適化（Text 再利用/描画回数削減）と、OpenCV 側エフェクトの軽量化を優先。
+
 15. トラッキング（任意）
 - Jira: Phase 0 完了、Phase 1/2/3 のタスクを作成（推論サイズ/頻度、capture CLI、エフェクト軽量化、Arcade Text 化、分離ベンチ）
 - Confluence: ベースライン結果・CSV・所見を記録（この plan.md の要約＋グラフ）
