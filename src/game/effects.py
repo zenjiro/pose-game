@@ -5,8 +5,6 @@ import random
 from dataclasses import dataclass
 from typing import List, Tuple
 
-import cv2
-import numpy as np
 import arcade
 
 
@@ -102,59 +100,7 @@ class EffectsManager:
             p.update(dt)
         self.particles = [p for p in self.particles if p.alive()]
 
-    def draw(self, frame: np.ndarray, fps: float | None = None) -> None:
-        # Draw particles using a glow pass so overlapping particles blend naturally.
-        # We accumulate into two float32 layers (core + glow), blur the glow,
-        # then additively blend back into the frame.
-        h, w = frame.shape[:2]
-        # Dynamically enable/disable glow based on FPS threshold (if provided)
-        effective_glow = self.use_glow and (fps is None or fps >= getattr(self, 'fps_threshold_for_glow', 0.0))
-        if not effective_glow:
-            for p in self.particles:
-                cx = int(p.x)
-                cy = int(p.y)
-                if cx < -5 or cy < -5 or cx >= w + 5 or cy >= h + 5:
-                    continue
-                col = p.color()
-                rad = p.radius()
-                cv2.circle(frame, (cx, cy), rad, col, -1, cv2.LINE_AA)
-            return
-
-        core_layer = np.zeros((h, w, 3), dtype=np.float32)
-        glow_layer = np.zeros((h, w, 3), dtype=np.float32)
-
-        for p in self.particles:
-            cx = int(p.x)
-            cy = int(p.y)
-            if cx < -5 or cy < -5 or cx >= w + 5 or cy >= h + 5:
-                continue
-            base_col = p.color()
-            # Fade intensity by life progress (smooth out at the end)
-            age = p.t()  # 0 at birth -> 1 at death
-            intensity = float(max(0.0, 1.0 - age))
-            intensity = intensity * intensity  # ease-out
-            colf = (base_col[0] * intensity, base_col[1] * intensity, base_col[2] * intensity)
-
-            rad = p.radius()
-            core_r = max(1, int(rad * self.core_scale))
-            halo_r = max(core_r + 1, int(rad * self.halo_scale))
-
-            cv2.circle(core_layer, (cx, cy), core_r, colf, -1, cv2.LINE_AA)
-            cv2.circle(glow_layer, (cx, cy), halo_r, colf, -1, cv2.LINE_AA)
-
-        if self.glow_sigma > 0:
-            glow_layer = cv2.GaussianBlur(glow_layer, ksize=(0, 0), sigmaX=self.glow_sigma, sigmaY=self.glow_sigma)
-
-        frame_f = frame.astype(np.float32)
-        accum = frame_f
-        if self.core_weight != 0:
-            accum = cv2.add(accum, core_layer * float(self.core_weight))
-        if self.glow_weight != 0:
-            accum = cv2.add(accum, glow_layer * float(self.glow_weight))
-        np.clip(accum, 0.0, 255.0, out=accum)
-        frame[:, :, :] = accum.astype(np.uint8)
-
-    def draw_arcade(self, height: int, fps: float | None = None) -> None:
+    def draw(self, height: int, fps: float | None = None) -> None:
         """Draw particles using Arcade. Uses a simple core + halo approach with alpha blending for speed.
         Glow is enabled only if FPS is above threshold (if provided).
         """
