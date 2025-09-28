@@ -5,6 +5,7 @@ import sys
 import math
 import cv2
 import numpy as np
+import threading
 
 from .profiler import init_profiler, get_profiler
 
@@ -12,6 +13,7 @@ from .camera import open_camera, list_available_cameras
 from .pose import PoseEstimator, Circle
 from .render import draw_circles, put_fps, draw_rocks
 from .effects import EffectsManager
+from .pipeline import LatestFrame, LatestPose, CameraCaptureThread, PoseInferThread, duplicate_center
 from .gameplay import RockManager
 from .player import GameState
 from .audio import AudioManager
@@ -89,6 +91,7 @@ def main() -> None:
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
     parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
     parser.add_argument("--opencl", choices=["auto", "on", "off"], default="auto", help="Enable/disable OpenCV OpenCL acceleration (default: auto)")
+    parser.add_argument("--pipeline", action="store_true", help="Enable threaded pipeline: capture thread + infer thread with latest-only queues")
     args = parser.parse_args()
 
     # Optionally toggle OpenCV OpenCL
@@ -179,6 +182,17 @@ def main() -> None:
     effects = EffectsManager()
     prof = get_profiler()
 
+    # Threaded pipeline (P2-1): capture thread + infer thread with latest-only queues
+    latest_frame = LatestFrame() if args.pipeline else None
+    latest_pose = LatestPose() if args.pipeline else None
+    cap_stop_event = threading.Event() if args.pipeline else None
+    infer_stop_event = threading.Event() if args.pipeline else None
+    if args.pipeline:
+        cam_thread = CameraCaptureThread(cap, latest_frame, cap_stop_event)
+        infer_thread = PoseInferThread(pose, latest_frame, latest_pose, infer_stop_event, infer_size=args.infer_size, duplicate=args.duplicate)
+        cam_thread.start()
+        infer_thread.start()
+
     prev = time.time()
     fps = 0.0
     dt = 0.0
@@ -204,6 +218,10 @@ def main() -> None:
                 self.effects = effects
                 self.args = args
                 self.last_frame_rgb = None
+                # Pipeline references
+                self.latest_frame = latest_frame
+                self.latest_pose = latest_pose
+                self.pipeline_enabled = bool(args.pipeline)
                 self.texture = None
                 self.bg_sprite = arcade.Sprite(center_x=WIDTH/2, center_y=HEIGHT/2)
                 self.bg_sprite.width = WIDTH
@@ -222,55 +240,66 @@ def main() -> None:
                     self.fps = 0.9 * self.fps + 0.1 * (1.0 / dt)
                 # Read camera
                 self.prof.start_frame()
-                with self.prof.section("camera_read"):
-                    ok, frame_bgr = self.cap.read()
-                if not ok or frame_bgr is None:
-                    self._cam_fail += 1
-                    if self._cam_fail > 30:
-                        return
-                    return
-                self._cam_fail = 0
-                # Duplicate mode
-                if self.args.duplicate:
-                    h, w = frame_bgr.shape[:2]
-                    left = int(w * 0.25)
-                    right = int(w * 0.75)
-                    center = frame_bgr[:, left:right].copy()
-                    half_w = w // 2
-                    if center.shape[1] != half_w:
-                        center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
-                    frame_bgr = cv2.hconcat([center, center])
-                # Pose processing
-                # Inference input resize and frame skipping (Arcade path)
-                h0, w0 = frame_bgr.shape[:2]
-                infer_frame = frame_bgr
-                scale_back_x = 1.0
-                scale_back_y = 1.0
-                if self.args.infer_size and self.args.infer_size > 0:
-                    short = min(w0, h0)
-                    target = int(self.args.infer_size)
-                    if target < short:
-                        if w0 <= h0:
-                            new_w = target
-                            new_h = int(h0 * (target / w0))
-                        else:
-                            new_h = target
-                            new_w = int(w0 * (target / h0))
-                        infer_frame = cv2.resize(frame_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
-                        scale_back_x = w0 / float(new_w)
-                        scale_back_y = h0 / float(new_h)
-                with self.prof.section("pose_infer"):
-                    ppl = self.pose.process(infer_frame)
-                if (scale_back_x != 1.0) or (scale_back_y != 1.0):
-                    people = []
-                    for p in ppl:
-                        newp = {"head": [], "hands": [], "feet": []}
-                        for k, lst in p.items():
-                            for c in lst:
-                                newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
-                        people.append(newp)
+                if self.pipeline_enabled and self.latest_frame and self.latest_pose:
+                    with self.prof.section("camera_read"):
+                        f, _seq_f, _ts_f = self.latest_frame.get()
+                        if f is None:
+                            return
+                        frame_bgr = f.copy()
+                        if self.args.duplicate:
+                            frame_bgr = duplicate_center(frame_bgr)
+                    with self.prof.section("pose_infer"):
+                        people, _seq_p, _ts_p = self.latest_pose.get()
                 else:
-                    people = ppl
+                    with self.prof.section("camera_read"):
+                        ok, frame_bgr = self.cap.read()
+                    if not ok or frame_bgr is None:
+                        self._cam_fail += 1
+                        if self._cam_fail > 30:
+                            return
+                        return
+                    self._cam_fail = 0
+                    # Duplicate mode
+                    if self.args.duplicate:
+                        h, w = frame_bgr.shape[:2]
+                        left = int(w * 0.25)
+                        right = int(w * 0.75)
+                        center = frame_bgr[:, left:right].copy()
+                        half_w = w // 2
+                        if center.shape[1] != half_w:
+                            center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
+                        frame_bgr = cv2.hconcat([center, center])
+                    # Pose processing
+                    # Inference input resize and frame skipping (Arcade path)
+                    h0, w0 = frame_bgr.shape[:2]
+                    infer_frame = frame_bgr
+                    scale_back_x = 1.0
+                    scale_back_y = 1.0
+                    if self.args.infer_size and self.args.infer_size > 0:
+                        short = min(w0, h0)
+                        target = int(self.args.infer_size)
+                        if target < short:
+                            if w0 <= h0:
+                                new_w = target
+                                new_h = int(h0 * (target / w0))
+                            else:
+                                new_h = target
+                                new_w = int(w0 * (target / h0))
+                            infer_frame = cv2.resize(frame_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                            scale_back_x = w0 / float(new_w)
+                            scale_back_y = h0 / float(new_h)
+                    with self.prof.section("pose_infer"):
+                        ppl = self.pose.process(infer_frame)
+                    if (scale_back_x != 1.0) or (scale_back_y != 1.0):
+                        people = []
+                        for p in ppl:
+                            newp = {"head": [], "hands": [], "feet": []}
+                            for k, lst in p.items():
+                                for c in lst:
+                                    newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
+                            people.append(newp)
+                    else:
+                        people = ppl
 
                 # Title/game start gesture logic (same as OpenCV path)
                 if not self.game_state.game_started:
@@ -443,68 +472,97 @@ def main() -> None:
         if args.max_seconds is None:
             arcade.run()
         else:
-            import threading
+            import threading as _th
             def stop_after_delay():
                 time.sleep(max(0.0, args.max_seconds))
                 try:
                     arcade.exit()
                 except Exception:
                     pass
-            t = threading.Thread(target=stop_after_delay, daemon=True)
+            t = _th.Thread(target=stop_after_delay, daemon=True)
             t.start()
             arcade.run()
+        # If pipeline is enabled, stop threads before exiting Arcade path
+        if args.pipeline:
+            try:
+                if infer_stop_event:
+                    infer_stop_event.set()
+                if cap_stop_event:
+                    cap_stop_event.set()
+            except Exception:
+                pass
+            try:
+                if 'infer_thread' in locals():
+                    infer_thread.join(timeout=1.0)
+                if 'cam_thread' in locals():
+                    cam_thread.join(timeout=1.0)
+            except Exception:
+                pass
         return
 
     try:
         while True:
             prof.start_frame()
-            with prof.section("camera_read"):
-                ok, frame = cap.read()
-                if not ok or frame is None:
-                    continue
-                # If duplicate mode is enabled, clip the center vertical band and duplicate it
-                if args.duplicate:
-                    h, w = frame.shape[:2]
-                    left = int(w * 0.25)
-                    right = int(w * 0.75)
-                    center = frame[:, left:right].copy()
-                    half_w = w // 2
-                    if center.shape[1] != half_w:
-                        center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
-                    frame = cv2.hconcat([center, center])
-
-            # Run pose detection on a clean frame BEFORE drawing any UI overlays.
-            # Inference input resize and frame skipping
-            h0, w0 = frame.shape[:2]
-            infer_frame = frame
-            scale_back_x = 1.0
-            scale_back_y = 1.0
-            if args.infer_size and args.infer_size > 0:
-                short = min(w0, h0)
-                target = int(args.infer_size)
-                if target < short:
-                    if w0 <= h0:
-                        new_w = target
-                        new_h = int(h0 * (target / w0))
-                    else:
-                        new_h = target
-                        new_w = int(w0 * (target / h0))
-                    infer_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-                    scale_back_x = w0 / float(new_w)
-                    scale_back_y = h0 / float(new_h)
-            with prof.section("pose_infer"):
-                ppl = pose.process(infer_frame)
-            # scale back to original frame size if resized
-            if (scale_back_x != 1.0) or (scale_back_y != 1.0):
-                people = []
-                for p in ppl:
-                    newp = {"head": [], "hands": [], "feet": []}
-                    for k, lst in p.items():
-                        for c in lst:
-                            newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
-                    people.append(newp)
-            else:
+            if args.pipeline:
+                # Use threaded pipeline: fetch latest frame and latest pose results
+                with prof.section("camera_read"):
+                    f, _seq_f, _ts_f = latest_frame.get() if latest_frame else (None, -1, 0.0)
+                    if f is None:
+                        continue
+                    frame = f.copy()
+                    if args.duplicate:
+                        frame = duplicate_center(frame)
+                with prof.section("pose_infer"):
+                    ppl, _seq_p, _ts_p = latest_pose.get() if latest_pose else ([], -1, 0.0)
                 people = ppl
+            else:
+                with prof.section("camera_read"):
+                    ok, frame = cap.read()
+                    if not ok or frame is None:
+                        continue
+                    # If duplicate mode is enabled, clip the center vertical band and duplicate it
+                    if args.duplicate:
+                        h, w = frame.shape[:2]
+                        left = int(w * 0.25)
+                        right = int(w * 0.75)
+                        center = frame[:, left:right].copy()
+                        half_w = w // 2
+                        if center.shape[1] != half_w:
+                            center = cv2.resize(center, (half_w, h), interpolation=cv2.INTER_LINEAR)
+                        frame = cv2.hconcat([center, center])
+
+                # Run pose detection on a clean frame BEFORE drawing any UI overlays.
+                # Inference input resize and frame skipping
+                h0, w0 = frame.shape[:2]
+                infer_frame = frame
+                scale_back_x = 1.0
+                scale_back_y = 1.0
+                if args.infer_size and args.infer_size > 0:
+                    short = min(w0, h0)
+                    target = int(args.infer_size)
+                    if target < short:
+                        if w0 <= h0:
+                            new_w = target
+                            new_h = int(h0 * (target / w0))
+                        else:
+                            new_h = target
+                            new_w = int(w0 * (target / h0))
+                        infer_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                        scale_back_x = w0 / float(new_w)
+                        scale_back_y = h0 / float(new_h)
+                with prof.section("pose_infer"):
+                    ppl = pose.process(infer_frame)
+                # scale back to original frame size if resized
+                if (scale_back_x != 1.0) or (scale_back_y != 1.0):
+                    people = []
+                    for p in ppl:
+                        newp = {"head": [], "hands": [], "feet": []}
+                        for k, lst in p.items():
+                            for c in lst:
+                                newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
+                        people.append(newp)
+                else:
+                    people = ppl
 
             # Show title screen if game hasn't started
             if not game_state.game_started:
@@ -1024,7 +1082,27 @@ def main() -> None:
                 # Restart via gesture only; ignore SPACE/ENTER on game over
                 print("[INFO] GameOver: restart with hand-raise gesture (2s), SPACE/ENTER disabled.")
     finally:
-        cap.release()
+        # Stop pipeline threads if enabled
+        if args.pipeline:
+            try:
+                if infer_stop_event:
+                    infer_stop_event.set()
+                if cap_stop_event:
+                    cap_stop_event.set()
+            except Exception:
+                pass
+            try:
+                # Join threads if they were started
+                if 'infer_thread' in locals():
+                    infer_thread.join(timeout=1.0)
+                if 'cam_thread' in locals():
+                    cam_thread.join(timeout=1.0)
+            except Exception:
+                pass
+        try:
+            cap.release()
+        except Exception:
+            pass
         try:
             cv2.destroyAllWindows()
         except Exception:
