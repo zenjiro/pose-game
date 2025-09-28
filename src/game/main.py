@@ -287,6 +287,7 @@ def main() -> None:
                 self._hand_msg_str = ""
 
             def on_update(self, dt: float):
+                nonlocal gesture_hold_start
                 now = time.time()
                 # Smooth FPS
                 if dt > 0:
@@ -354,37 +355,34 @@ def main() -> None:
                     else:
                         people = ppl
 
-                # Title/game start gesture logic (same as OpenCV path)
+                # Title/game start/restart gesture logic
+                now_g = time.time()
+                def any_hand_above_head(people_list):
+                    try:
+                        for p in people_list:
+                            head_list = p.get("head", [])
+                            hand_list = p.get("hands", [])
+                            if not head_list or not hand_list:
+                                continue
+                            head_c = head_list[0]
+                            margin = max(5, int(head_c.r * 0.2))
+                            for hc in hand_list:
+                                if hc.y < head_c.y - margin:
+                                    return True
+                    except Exception:
+                        pass
+                    return False
+
                 if not self.game_state.game_started:
                     # Gesture-based start: raise a hand above the head for 2 seconds
-                    # Prepare title HUD texts lazily (Arcade path) to mirror OpenCV title messages
                     if self._title_texts is None:
                         title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (255,255,0), 48, anchor_x="center", font_name=self.arcade_font_name)
                         line1 = arcade.Text("あたまで　いわを　よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
                         line2 = arcade.Text("あしで　いわを　けって　スコアを　かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
                         hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center", font_name=self.arcade_font_name)
                         self._title_texts = (title, line1, line2, hint)
-                    else:
-                        # Update hint color or text if needed in future
-                        pass
-                    now_g = time.time()
-                    def any_hand_above_head(people_list):
-                        try:
-                            for p in people_list:
-                                head_list = p.get("head", [])
-                                hand_list = p.get("hands", [])
-                                if not head_list or not hand_list:
-                                    continue
-                                head_c = head_list[0]
-                                margin = max(5, int(head_c.r * 0.2))
-                                for hc in hand_list:
-                                    if hc.y < head_c.y - margin:
-                                        return True
-                        except Exception:
-                            pass
-                        return False
+                    
                     if any_hand_above_head(people):
-                        nonlocal gesture_hold_start
                         if gesture_hold_start is None:
                             gesture_hold_start = now_g
                         hold_elapsed = now_g - gesture_hold_start
@@ -394,10 +392,21 @@ def main() -> None:
                             gesture_hold_start = None
                     else:
                         gesture_hold_start = None
+                elif self.game_state.game_over:
+                    # Gesture-based restart
+                    if any_hand_above_head(people):
+                        if gesture_hold_start is None:
+                            gesture_hold_start = now_g
+                        hold_elapsed = now_g - gesture_hold_start
+                        if hold_elapsed >= 2.0:
+                            self.game_state.reset()
+                            self.rock_mgr.reset()
+                            gesture_hold_start = None
+                    else:
+                        gesture_hold_start = None
                 else:
                     # Active gameplay
-                    if not self.game_state.game_over:
-                        self.rock_mgr.maybe_spawn()
+                    self.rock_mgr.maybe_spawn()
 
                 # Map detected people to players by head X position
                 h, w = frame_bgr.shape[:2]
@@ -742,6 +751,34 @@ def main() -> None:
                 if not self.game_state.game_started and self._title_texts is not None:
                     for t in self._title_texts:
                         self._safe_draw_text(t)
+                
+                # Draw game over screen
+                if self.game_state.game_over:
+                    winner = self.game_state.get_winner()
+                    if winner == 0:
+                        left_msg = "かち！"
+                        right_msg = "まけ…"
+                    elif winner == 1:
+                        left_msg = "まけ…"
+                        right_msg = "かち！"
+                    else:
+                        left_msg = "ひきわけ"
+                        right_msg = "ひきわけ"
+                    
+                    if not hasattr(self, 'game_over_texts'):
+                        self.game_over_texts = {
+                            "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
+                            "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
+                            "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, (100, 255, 100), 26, anchor_x="center", font_name=self.arcade_font_name)
+                        }
+                    
+                    self.game_over_texts["left"].text = left_msg
+                    self.game_over_texts["right"].text = right_msg
+                    
+                    self._safe_draw_text(self.game_over_texts["left"])
+                    self._safe_draw_text(self.game_over_texts["right"])
+                    self._safe_draw_text(self.game_over_texts["restart"])
+
                 if self.args.profile_osd:
                     avg = self.prof.get_averages()
                     frame_ms = avg.get("frame_total", 0.0)

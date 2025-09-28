@@ -67,6 +67,7 @@ class GameState:
         self.start_time = 0.0
         self.game_over_time = 0.0
         self.audio_manager = audio_manager
+        self.game_over_start_time: float | None = None
 
     def get_player(self, player_id: int) -> PlayerState:
         """Get player state by ID."""
@@ -102,6 +103,7 @@ class GameState:
         self.game_over = False
         self.start_time = time.time()
         self.game_over_time = self.time_limit
+        self.game_over_start_time = None
         for player in self.players:
             player.reset()
 
@@ -113,6 +115,15 @@ class GameState:
         self.game_started = True  # Keep game started when restarting
         self.start_time = time.time()
         self.game_over_time = self.time_limit
+        self.game_over_start_time = None
+
+    def back_to_title(self):
+        """Reset the game to the title screen."""
+        for player in self.players:
+            player.reset()
+        self.game_started = False
+        self.game_over = False
+        self.game_over_start_time = None
 
     def get_winner(self) -> int | None:
         """Get the winning player ID, or None if tie/no winner yet."""
@@ -135,6 +146,7 @@ class GameState:
     def set_game_over(self):
         if not self.game_over:
             self.game_over = True
+            self.game_over_start_time = time.time()
             elapsed_time = time.time() - self.start_time
             self.game_over_time = max(0, self.time_limit - elapsed_time)
             # (f) finish the game
