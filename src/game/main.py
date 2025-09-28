@@ -222,6 +222,22 @@ def main() -> None:
                     "Meiryo", "Yu Gothic UI", "Yu Gothic", "MS Gothic",
                     "Noto Sans CJK JP", "Noto Sans CJK", "Arial Unicode MS"
                 ]
+                # Align Arcade font with OpenCV's JP font if available
+                self.arcade_font_name = None
+                try:
+                    jp_font_path = self.args.jp_font or find_default_jp_font()
+                    if jp_font_path and os.path.isfile(jp_font_path):
+                        try:
+                            import arcade as _arc
+                            _arc.load_font(jp_font_path)
+                        except Exception:
+                            pass
+                        self.arcade_font_name = jp_font_path
+                except Exception:
+                    self.arcade_font_name = None
+                if self.arcade_font_name is None:
+                    # Fallback to JP-capable family names list
+                    self.arcade_font_name = self.jp_fonts
                 self.last_frame_rgb = None
                 # Pipeline references
                 self.latest_frame = latest_frame
@@ -318,10 +334,10 @@ def main() -> None:
                     # Gesture-based start: raise a hand above the head for 2 seconds
                     # Prepare title HUD texts lazily (Arcade path) to mirror OpenCV title messages
                     if self._title_texts is None:
-                        title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (255,255,0), 48, anchor_x="center", font_name=self.jp_fonts)
-                        line1 = arcade.Text("あたまで いわを よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center", font_name=self.jp_fonts)
-                        line2 = arcade.Text("あしで いわを けって スコアを かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.jp_fonts)
-                        hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center", font_name=self.jp_fonts)
+                        title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (255,255,0), 48, anchor_x="center", font_name=self.arcade_font_name)
+                        line1 = arcade.Text("あたまで いわを よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
+                        line2 = arcade.Text("あしで いわを けって スコアを かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
+                        hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center", font_name=self.arcade_font_name)
                         self._title_texts = (title, line1, line2, hint)
                     else:
                         # Update hint color or text if needed in future
