@@ -31,22 +31,6 @@ def draw_circles_arcade(groups: Dict[str, List[Circle]], height: int, color_shif
             r = float(c.r)
             arcade.draw_circle_outline(x, y, r, col, border_width=thickness)
 
-# Legacy rendering functions (kept for fallback compatibility)
-def draw_rocks_arcade(rocks: List[Rock], height: int) -> None:
-    """Legacy individual draw approach for rocks. Used only with --legacy-rendering flag."""
-    for rk in rocks:
-        x = float(rk.x)
-        y = float(height - rk.y)
-        r = float(rk.r)
-        col = (rk.color[2], rk.color[1], rk.color[0])
-        arcade.draw_circle_filled(x, y, r, col)
-        arcade.draw_circle_filled(x - r * 0.3, y + r * 0.3, r * 0.3, (100, 100, 100))
-        try:
-            if getattr(rk, "hit", False):
-                arcade.draw_circle_outline(x, y, r + 4, (200, 0, 0), border_width=3)
-        except Exception:
-            pass
-
 
 class RockSprite(arcade.Sprite):
     """Sprite representation of a rock for batch rendering."""

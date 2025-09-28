@@ -73,7 +73,6 @@ def main() -> None:
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
     parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
-    parser.add_argument("--legacy-rendering", action="store_true", help="Use legacy individual draw calls instead of optimized SpriteList/Geometry rendering")
     args = parser.parse_args()
 
 
@@ -258,11 +257,10 @@ def main() -> None:
             self._head_msg_str = ""
             self._hand_msg_str = ""
             
-            # Initialize optimized rendering components (now default)
+            # Initialize optimized rendering components (now the only option)
             from .render import RockSpriteList, CircleGeometry
             self.rock_sprite_list = RockSpriteList(HEIGHT)
             self.circle_geometry = CircleGeometry()
-            self.use_legacy_rendering = getattr(self.args, 'legacy_rendering', False)  # Optional fallback to legacy
 
         def on_update(self, dt: float):
             nonlocal gesture_hold_start
@@ -629,31 +627,18 @@ def main() -> None:
                     # Blit the latest pyglet image to fill the window
                     with self.prof.section("draw_camera"):
                         self.pg_image.blit(0, 0, width=WIDTH, height=HEIGHT)
-            # Draw pose circles (if any)
+            # Draw pose circles using optimized geometry-based rendering
             from .render import draw_circles_arcade_optimized
             try:
                 with self.prof.section("draw_pose"):
-                    if self.use_legacy_rendering:
-                        # Fallback to original individual draw calls
-                        from .render import draw_circles_arcade
-                        draw_circles_arcade(self.players[0], HEIGHT, color=(0, 0, 255))
-                        draw_circles_arcade(self.players[1], HEIGHT, color=(255, 0, 0))
-                    else:
-                        # Use optimized geometry-based rendering (default)
-                        draw_circles_arcade_optimized(self.players[0], HEIGHT, color=(0, 0, 255), geometry_renderer=self.circle_geometry)
-                        draw_circles_arcade_optimized(self.players[1], HEIGHT, color=(255, 0, 0), geometry_renderer=self.circle_geometry)
+                    draw_circles_arcade_optimized(self.players[0], HEIGHT, color=(0, 0, 255), geometry_renderer=self.circle_geometry)
+                    draw_circles_arcade_optimized(self.players[1], HEIGHT, color=(255, 0, 0), geometry_renderer=self.circle_geometry)
             except Exception:
                 pass
-            # Draw rocks and effects
+            # Draw rocks using SpriteList-based rendering
             with self.prof.section("draw_rocks"):
-                if self.use_legacy_rendering:
-                    # Fallback to original individual draw calls
-                    from .render import draw_rocks_arcade
-                    draw_rocks_arcade(self.rock_mgr.rocks, HEIGHT)
-                else:
-                    # Use SpriteList-based rendering for rocks (default)
-                    self.rock_sprite_list.update_rocks(self.rock_mgr.rocks)
-                    self.rock_sprite_list.draw()
+                self.rock_sprite_list.update_rocks(self.rock_mgr.rocks)
+                self.rock_sprite_list.draw()
             with self.prof.section("draw_fx"):
                 self.effects.draw(HEIGHT, fps=self.fps)
             # Draw HUD using persistent Text objects (avoid per-frame allocations)
