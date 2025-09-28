@@ -526,8 +526,10 @@ def main() -> None:
                 anchor_y = getattr(text_obj, 'anchor_y', 'baseline')
                 rotation = float(getattr(text_obj, 'rotation', 0.0))
 
-                # Four-direction outline
-                for dx, dy in ((-outline_width, 0), (outline_width, 0), (0, -outline_width), (0, outline_width)):
+                # Eight-direction outline for smoother text outlining
+                for dx, dy in ((-outline_width, 0), (outline_width, 0), (0, -outline_width), (0, outline_width),
+                               (-outline_width, -outline_width), (outline_width, -outline_width), 
+                               (-outline_width, outline_width), (outline_width, outline_width)):
                     arcade.draw_text(
                         txt, x + dx, y + dy,
                         outline_color,
