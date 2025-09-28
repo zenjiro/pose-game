@@ -209,8 +209,14 @@ G) OSD（9）
 - [x] P0-4: ベースライン測定（OpenCV/Arcade、FHD/720p、rocks=100）
 - [x] P1-1: 推論入力縮小スイープ（完了、12.2 に結果あり）
 - [x] P1-2: 推論スキップ導入（不要のため実施しない＝Won't Do）
-- [ ] P2-1: Capture/Infer のスレッド化 + 最新優先キュー（次に着手）
-- [ ] P3-1: Arcade の SpriteList/テキストキャッシュ
+- [x] P2-1: Capture/Infer のスレッド化 + 最新優先キュー（完了、--pipeline で有効化。src/game/pipeline.py を追加し、OpenCV/Arcade 両経路に統合）
+- [ ] P3-1: Arcade の SpriteList/テキストキャッシュ（次の着手）
+  - Text: draw_text から Text オブジェクトへ全面移行（HUD/タイマー/スコア/ライフ）。静的文字列は事前生成、数値のみ差し替え
+  - Rocks: SpriteList へ移行（岩をスプライト化、位置と半径のみ更新）／Geometry でインスタンシング検討
+  - Circles: 〇アウトラインは Geometry/instancing を試験（なければ描画関数の呼び出し回数削減）
+  - OSD: プロファイラ OSD を 1–2 描画に集約
+  - ベンチ: scripts/bench_render_static.py を実装し、固定フレームで描画コストのみ比較
+  - 計測: 10–30s、--skip-first 1、CSV 比較とグラフ化（A/B で draw_* 合計と frame_ms を注視）
 - [x] P4-1: 空間ハッシュ + ベクトル化（現状不要、主ボトルネックが姿勢推定のため＝Won't Do）
 - [ ] P5-1: アブレーション比較まとめ & ドキュメント
 
