@@ -270,7 +270,7 @@ def main() -> None:
                 self._cam_fail = 0
                 self.prof = get_profiler()
                 # Pre-allocate Text objects to avoid per-frame draw_text cost
-                self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 28, arcade.color.WHITE, 14, font_name=self.arcade_font_name)
+                self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 38, arcade.color.WHITE, 14, font_name=self.arcade_font_name)
                 # Event messages (head hits / hand hits)
                 self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (230, 20, 20), 32, font_name=self.arcade_font_name)
                 self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32, font_name=self.arcade_font_name)
@@ -542,7 +542,7 @@ def main() -> None:
                         # Positions
                         margin = 12
                         # Timer centered at top
-                        self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 36, arcade.color.WHITE, 36, anchor_x="center", font_name=self.arcade_font_name)
+                        self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 46, arcade.color.WHITE, 36, anchor_x="center", font_name=self.arcade_font_name)
                         # P1 left
                         self.p1_score_text = arcade.Text("スコア: 0", margin, HEIGHT - 70, (255, 0, 0), 28, font_name=self.arcade_font_name)
                         self.p1_lives_text = arcade.Text("ライフ: 5", margin, HEIGHT - 100, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
@@ -550,7 +550,7 @@ def main() -> None:
                         self.p2_score_text = arcade.Text("スコア: 0", WIDTH - margin, HEIGHT - 70, (0, 0, 255), 28, anchor_x="right", font_name=self.arcade_font_name)
                         self.p2_lives_text = arcade.Text("ライフ: 5", WIDTH - margin, HEIGHT - 100, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
                         # FPS at top-left below timer
-                        self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 28, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
+                        self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 38, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
                         self.hud_texts = [
                             self.timer_text,
                             self.p1_score_text, self.p1_lives_text,
