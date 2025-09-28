@@ -227,22 +227,35 @@ def main() -> None:
                     "Meiryo", "Yu Gothic UI", "Yu Gothic", "MS Gothic",
                     "Noto Sans CJK JP", "Noto Sans CJK", "Arial Unicode MS"
                 ]
-                # Align Arcade font with OpenCV's JP font if available
-                self.arcade_font_name = None
+                # Build Arcade font candidates following the sample script guidance:
+                # - Prefer family names (tuple of strings)
+                # - If a font file path is given, register it via arcade.load_font but still use family names
+                # - If a family name is given, prepend it to the candidates
+                candidates = list(self.jp_fonts)
+                user_font = getattr(self.args, 'jp_font', None)
                 try:
-                    jp_font_path = self.args.jp_font or find_default_jp_font()
-                    if jp_font_path and os.path.isfile(jp_font_path):
-                        try:
-                            import arcade as _arc
-                            _arc.load_font(jp_font_path)
-                        except Exception:
-                            pass
-                        self.arcade_font_name = jp_font_path
+                    if user_font:
+                        if os.path.isfile(user_font):
+                            try:
+                                arcade.load_font(user_font)
+                            except Exception:
+                                pass
+                            # Keep candidates as family names; do not use the file path directly
+                        else:
+                            # Treat as a family name hint
+                            candidates = [str(user_font)] + candidates
+                    else:
+                        # Also try to register a default JP-capable font file if we can locate it
+                        jp_font_path = find_default_jp_font()
+                        if jp_font_path and os.path.isfile(jp_font_path):
+                            try:
+                                arcade.load_font(jp_font_path)
+                            except Exception:
+                                pass
                 except Exception:
-                    self.arcade_font_name = None
-                if self.arcade_font_name is None:
-                    # Fallback to JP-capable family names list; Arcade expects str or tuple[str,...]
-                    self.arcade_font_name = tuple(self.jp_fonts)
+                    pass
+                # Arcade 3.3+ expects a string or a tuple of strings
+                self.arcade_font_name = tuple(candidates)
                 self.last_frame_rgb = None
                 # Pipeline references
                 self.latest_frame = latest_frame
@@ -257,16 +270,21 @@ def main() -> None:
                 self._cam_fail = 0
                 self.prof = get_profiler()
                 # Pre-allocate Text objects to avoid per-frame draw_text cost
-                self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 28, arcade.color.WHITE, 14)
+                self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 28, arcade.color.WHITE, 14, font_name=self.arcade_font_name)
                 # Event messages (head hits / hand hits)
-                self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (230, 20, 20), 32)
-                self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32)
+                self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (230, 20, 20), 32, font_name=self.arcade_font_name)
+                self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32, font_name=self.arcade_font_name)
                 self._head_msg_until = 0.0
                 self._hand_msg_until = 0.0
                 # Title screen texts (lazy initialized)
                 self._title_texts = None
                 # Guard to disable text rendering if pyglet/DirectWrite misbehaves
                 self._text_ok = True
+                # On Windows, prefer PIL-based text overlay to avoid pyglet DirectWrite issues
+                self.use_pil_text = sys.platform.startswith('win')
+                # Buffers for transient JP messages when using PIL overlay
+                self._head_msg_str = ""
+                self._hand_msg_str = ""
 
             def on_update(self, dt: float):
                 now = time.time()
@@ -524,15 +542,15 @@ def main() -> None:
                         # Positions
                         margin = 12
                         # Timer centered at top
-                        self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 36, arcade.color.WHITE, 36, anchor_x="center")
+                        self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 36, arcade.color.WHITE, 36, anchor_x="center", font_name=self.arcade_font_name)
                         # P1 left
-                        self.p1_score_text = arcade.Text("P1 Score: 0", margin, HEIGHT - 60, (255, 0, 0), 28)
-                        self.p1_lives_text = arcade.Text("P1 Lives: 5", margin, HEIGHT - 80, arcade.color.WHITE, 24)
+                        self.p1_score_text = arcade.Text("P1 Score: 0", margin, HEIGHT - 60, (255, 0, 0), 28, font_name=self.arcade_font_name)
+                        self.p1_lives_text = arcade.Text("P1 Lives: 5", margin, HEIGHT - 80, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
                         # P2 right (right-aligned)
-                        self.p2_score_text = arcade.Text("P2 Score: 0", WIDTH - margin, HEIGHT - 60, (0, 0, 255), 28, anchor_x="right")
-                        self.p2_lives_text = arcade.Text("P2 Lives: 5", WIDTH - margin, HEIGHT - 80, arcade.color.WHITE, 24, anchor_x="right")
+                        self.p2_score_text = arcade.Text("P2 Score: 0", WIDTH - margin, HEIGHT - 60, (0, 0, 255), 28, anchor_x="right", font_name=self.arcade_font_name)
+                        self.p2_lives_text = arcade.Text("P2 Lives: 5", WIDTH - margin, HEIGHT - 80, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
                         # FPS at top-left below timer
-                        self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 28, arcade.color.WHITE, 28)
+                        self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 28, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
                         self.hud_texts = [
                             self.timer_text,
                             self.p1_score_text, self.p1_lives_text,
