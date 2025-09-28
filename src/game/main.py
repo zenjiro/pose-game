@@ -232,6 +232,11 @@ def main() -> None:
                 self.prof = get_profiler()
                 # Pre-allocate Text objects to avoid per-frame draw_text cost
                 self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 28, arcade.color.WHITE, 14)
+                # Event messages (head hits / hand hits)
+                self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (20, 20, 230), 16)
+                self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 16)
+                self._head_msg_until = 0.0
+                self._hand_msg_until = 0.0
 
             def on_update(self, dt: float):
                 now = time.time()
@@ -381,6 +386,10 @@ def main() -> None:
                                     self.audio_mgr.play_head_hit()
                                 else:
                                     head_hits_display.append("INVULNERABLE")
+                    if head_hits_display:
+                        # Show head message for a short duration
+                        self.head_msg_text.text = ", ".join(head_hits_display)
+                        self._head_msg_until = time.time() + 1.5
                     # Hands collisions
                     hand_circles = []
                     for circles in players:
@@ -390,6 +399,9 @@ def main() -> None:
                     hand_hits = hand_events.get("hits", 0)
                     if hand_hits > 0:
                         self.audio_mgr.play_hand_hit()
+                        # Show hand message briefly
+                        self.hand_msg_text.text = f"HAND HIT x{hand_hits}"
+                        self._hand_msg_until = time.time() + 1.0
                         for (px, py) in hand_events.get("positions", []):
                             self.effects.spawn_explosion(
                                 px, py,
@@ -499,6 +511,12 @@ def main() -> None:
                     # Draw all HUD texts
                     for t in self.hud_texts:
                         t.draw()
+                # Draw transient event messages (similar to OpenCV OSD)
+                now_t = time.time()
+                if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
+                    self.head_msg_text.draw()
+                if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
+                    self.hand_msg_text.draw()
                 # Optionally show profiler OSD in Arcade window title
                 if self.args.profile_osd:
                     avg = self.prof.get_averages()
