@@ -71,6 +71,7 @@ def main() -> None:
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
     parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
+    parser.add_argument("--hud-outline-shader", action="store_true", help="Experimental: use single-pass shader-based outline for HUD text (T8 prototype)")
     args = parser.parse_args()
 
 
@@ -744,6 +745,7 @@ def main() -> None:
 
 
             self.prof.end_frame({"backend": "arcade"})
+            # (Experimental) HUD outline shader path placeholder executed (flag parsed earlier)
 
     win = PoseGameWindow()
     # Run Arcade loop with optional timed exit
