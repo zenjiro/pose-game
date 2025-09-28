@@ -237,6 +237,8 @@ def main() -> None:
                 self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32)
                 self._head_msg_until = 0.0
                 self._hand_msg_until = 0.0
+                # Title screen texts (lazy initialized)
+                self._title_texts = None
 
             def on_update(self, dt: float):
                 now = time.time()
@@ -309,6 +311,16 @@ def main() -> None:
                 # Title/game start gesture logic (same as OpenCV path)
                 if not self.game_state.game_started:
                     # Gesture-based start: raise a hand above the head for 2 seconds
+                    # Prepare title HUD texts lazily (Arcade path) to mirror OpenCV title messages
+                    if self._title_texts is None:
+                        title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (255,255,0), 48, anchor_x="center")
+                        line1 = arcade.Text("あたまで いわを よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center")
+                        line2 = arcade.Text("あしで いわを けって スコアを かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center")
+                        hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center")
+                        self._title_texts = (title, line1, line2, hint)
+                    else:
+                        # Update hint color or text if needed in future
+                        pass
                     now_g = time.time()
                     def any_hand_above_head(people_list):
                         try:
@@ -522,6 +534,10 @@ def main() -> None:
                 if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
                     self.hand_msg_text.draw()
                 # Optionally show profiler OSD in Arcade window title
+                # Draw title screen texts if game hasn't started
+                if not self.game_state.game_started and self._title_texts is not None:
+                    for t in self._title_texts:
+                        t.draw()
                 if self.args.profile_osd:
                     avg = self.prof.get_averages()
                     frame_ms = avg.get("frame_total", 0.0)
