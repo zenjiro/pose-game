@@ -217,6 +217,11 @@ def main() -> None:
                 self.game_state = game_state
                 self.effects = effects
                 self.args = args
+                # Prefer JP-capable fonts to avoid pyglet DirectWrite issues on Windows
+                self.jp_fonts = [
+                    "Meiryo", "Yu Gothic UI", "Yu Gothic", "MS Gothic",
+                    "Noto Sans CJK JP", "Noto Sans CJK", "Arial Unicode MS"
+                ]
                 self.last_frame_rgb = None
                 # Pipeline references
                 self.latest_frame = latest_frame
@@ -313,10 +318,10 @@ def main() -> None:
                     # Gesture-based start: raise a hand above the head for 2 seconds
                     # Prepare title HUD texts lazily (Arcade path) to mirror OpenCV title messages
                     if self._title_texts is None:
-                        title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (255,255,0), 48, anchor_x="center")
-                        line1 = arcade.Text("あたまで いわを よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center")
-                        line2 = arcade.Text("あしで いわを けって スコアを かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center")
-                        hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center")
+                        title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (255,255,0), 48, anchor_x="center", font_name=self.jp_fonts)
+                        line1 = arcade.Text("あたまで いわを よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center", font_name=self.jp_fonts)
+                        line2 = arcade.Text("あしで いわを けって スコアを かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.jp_fonts)
+                        hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center", font_name=self.jp_fonts)
                         self._title_texts = (title, line1, line2, hint)
                     else:
                         # Update hint color or text if needed in future
