@@ -544,11 +544,11 @@ def main() -> None:
                         # Timer centered at top
                         self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 36, arcade.color.WHITE, 36, anchor_x="center", font_name=self.arcade_font_name)
                         # P1 left
-                        self.p1_score_text = arcade.Text("P1 Score: 0", margin, HEIGHT - 60, (255, 0, 0), 28, font_name=self.arcade_font_name)
-                        self.p1_lives_text = arcade.Text("P1 Lives: 5", margin, HEIGHT - 80, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
+                        self.p1_score_text = arcade.Text("スコア: 0", margin, HEIGHT - 60, (255, 0, 0), 28, font_name=self.arcade_font_name)
+                        self.p1_lives_text = arcade.Text("ライフ: 5", margin, HEIGHT - 80, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
                         # P2 right (right-aligned)
-                        self.p2_score_text = arcade.Text("P2 Score: 0", WIDTH - margin, HEIGHT - 60, (0, 0, 255), 28, anchor_x="right", font_name=self.arcade_font_name)
-                        self.p2_lives_text = arcade.Text("P2 Lives: 5", WIDTH - margin, HEIGHT - 80, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
+                        self.p2_score_text = arcade.Text("スコア: 0", WIDTH - margin, HEIGHT - 60, (0, 0, 255), 28, anchor_x="right", font_name=self.arcade_font_name)
+                        self.p2_lives_text = arcade.Text("ライフ: 5", WIDTH - margin, HEIGHT - 80, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
                         # FPS at top-left below timer
                         self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 28, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
                         self.hud_texts = [
@@ -570,12 +570,12 @@ def main() -> None:
                     # Scores/Lives
                     p1 = self.game_state.get_player(0)
                     p2 = self.game_state.get_player(1)
-                    self.p1_score_text.text = f"P1 Score: {p1.score}"
-                    self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"P1 Lives: {p1.lives}"
+                    self.p1_score_text.text = f"スコア: {p1.score}"
+                    self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"ライフ: {p1.lives}"
                     # Match OpenCV coloring: green normally, red when low lives (<=1), invulnerable, or game over
                     self.p1_lives_text.color = (255, 50, 50) if (p1.is_game_over or p1.is_invulnerable() or p1.lives <= 1) else (100, 255, 100)
-                    self.p2_score_text.text = f"P2 Score: {p2.score}"
-                    self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"P2 Lives: {p2.lives}"
+                    self.p2_score_text.text = f"スコア: {p2.score}"
+                    self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"ライフ: {p2.lives}"
                     self.p2_lives_text.color = (255, 50, 50) if (p2.is_game_over or p2.is_invulnerable() or p2.lives <= 1) else (100, 255, 100)
                     # FPS
                     self.fps_text.text = f"FPS: {self.fps:.1f}"
