@@ -717,9 +717,9 @@ def main() -> None:
                     putText_with_outline(frame, "Hit rocks with your feet to score!", (frame.shape[1]//2 - 230, frame.shape[0]//2 + 20), 
                                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
                     if hold_remaining is not None:
-                        hint_ascii = "Raise a hand to start"
+                        hint_ascii = "てを　あげると　スタート"
                     else:
-                        hint_ascii = "Raise a hand to start"
+                        hint_ascii = "てを　あげると　スタート"
                     (tw, th), _ = cv2.getTextSize(hint_ascii, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
                     tx = frame.shape[1]//2 - tw//2
                     putText_with_outline(frame, hint_ascii, (tx, frame.shape[0]//2 + 80), 
