@@ -365,8 +365,8 @@ def main() -> None:
                     # Prepare title HUD texts lazily (Arcade path) to mirror OpenCV title messages
                     if self._title_texts is None:
                         title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (255,255,0), 48, anchor_x="center", font_name=self.arcade_font_name)
-                        line1 = arcade.Text("あたまで いわを よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
-                        line2 = arcade.Text("あしで いわを けって スコアを かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
+                        line1 = arcade.Text("あたまで　いわを　よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
+                        line2 = arcade.Text("あしで　いわを　けって　スコアを　かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
                         hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (100,255,100), 26, anchor_x="center", font_name=self.arcade_font_name)
                         self._title_texts = (title, line1, line2, hint)
                     else:
@@ -445,7 +445,7 @@ def main() -> None:
                             if hits > 0:
                                 damage_taken = self.game_state.handle_head_hit(i)
                                 if damage_taken:
-                                    head_hits_display.append("ライフ -1！")
+                                    head_hits_display.append("ライフ　-1！")
                                     self.audio_mgr.play_head_hit()
                                 else:
                                     head_hits_display.append("無敵中")
@@ -464,7 +464,7 @@ def main() -> None:
                     if hand_hits > 0:
                         self.audio_mgr.play_hand_hit()
                         # Show hand message briefly
-                        self.hand_msg_text.text = f"手ヒット x{hand_hits}"
+                        self.hand_msg_text.text = f"手ヒット　x{hand_hits}"
                         self._hand_msg_until = time.time() + 1.0
                         for (px, py) in hand_events.get("positions", []):
                             self.effects.spawn_explosion(
@@ -640,11 +640,11 @@ def main() -> None:
                         # Timer centered at top
                         self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 46, arcade.color.WHITE, 36, anchor_x="center", font_name=self.arcade_font_name)
                         # P1 left
-                        self.p1_score_text = arcade.Text("スコア: 0", margin, HEIGHT - 70, (255, 0, 0), 28, font_name=self.arcade_font_name)
-                        self.p1_lives_text = arcade.Text("ライフ: 5", margin, HEIGHT - 100, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
+                        self.p1_score_text = arcade.Text("スコア:　0", margin, HEIGHT - 70, (255, 0, 0), 28, font_name=self.arcade_font_name)
+                        self.p1_lives_text = arcade.Text("ライフ:　5", margin, HEIGHT - 100, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
                         # P2 right (right-aligned)
-                        self.p2_score_text = arcade.Text("スコア: 0", WIDTH - margin, HEIGHT - 70, (0, 0, 255), 28, anchor_x="right", font_name=self.arcade_font_name)
-                        self.p2_lives_text = arcade.Text("ライフ: 5", WIDTH - margin, HEIGHT - 100, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
+                        self.p2_score_text = arcade.Text("スコア:　0", WIDTH - margin, HEIGHT - 70, (0, 0, 255), 28, anchor_x="right", font_name=self.arcade_font_name)
+                        self.p2_lives_text = arcade.Text("ライフ:　5", WIDTH - margin, HEIGHT - 100, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
                         # FPS at top-left below timer
                         self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 38, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
                         self.hud_texts = [
@@ -666,12 +666,12 @@ def main() -> None:
                     # Scores/Lives
                     p1 = self.game_state.get_player(0)
                     p2 = self.game_state.get_player(1)
-                    self.p1_score_text.text = f"スコア: {p1.score}"
-                    self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"ライフ: {p1.lives}"
+                    self.p1_score_text.text = f"スコア:　{p1.score}"
+                    self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"ライフ:　{p1.lives}"
                     # Match OpenCV coloring: green normally, red when low lives (<=1), invulnerable, or game over
                     self.p1_lives_text.color = (255, 50, 50) if (p1.is_game_over or p1.is_invulnerable() or p1.lives <= 1) else (100, 255, 100)
-                    self.p2_score_text.text = f"スコア: {p2.score}"
-                    self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"ライフ: {p2.lives}"
+                    self.p2_score_text.text = f"スコア:　{p2.score}"
+                    self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"ライフ:　{p2.lives}"
                     self.p2_lives_text.color = (255, 50, 50) if (p2.is_game_over or p2.is_invulnerable() or p2.lives <= 1) else (100, 255, 100)
                     # FPS
                     self.fps_text.text = f"FPS: {self.fps:.1f}"
