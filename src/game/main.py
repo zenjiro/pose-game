@@ -66,9 +66,7 @@ def main() -> None:
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
     # If not provided, we try to auto-detect a Japanese-capable font per OS
     parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
-    parser.add_argument("--profile", action="store_true", help="Enable frame profiling")
-    parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV")
-    parser.add_argument("--profile-osd", action="store_true", help="Overlay profiling stats (slight overhead)")
+    parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV (enables profiler)")
     parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
@@ -77,7 +75,7 @@ def main() -> None:
 
 
     # Initialize profiler
-    init_profiler(enabled=bool(args.profile), csv_path=args.profile_csv)
+    init_profiler(enabled=bool(args.profile_csv), csv_path=args.profile_csv)
     run_start_ts = time.time()
 
     # Pre-scan available cameras and set up camera cycling list
@@ -744,11 +742,7 @@ def main() -> None:
                 self._safe_draw_text(self.game_over_texts["right"], self.game_over_outline_texts["right"])
                 self._safe_draw_text(self.game_over_texts["restart"], self.game_over_outline_texts["restart"])
 
-            if self.args.profile_osd:
-                avg = self.prof.get_averages()
-                frame_ms = avg.get("frame_total", 0.0)
-                fps_osd = (1000.0/frame_ms) if frame_ms > 0 else 0.0
-                self.set_caption(f"Pose Game (Arcade) - {fps_osd:.1f} FPS, frame {frame_ms:.1f} ms")
+
             self.prof.end_frame({"backend": "arcade"})
 
     win = PoseGameWindow()
