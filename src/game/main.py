@@ -382,10 +382,10 @@ def main() -> None:
                             if hits > 0:
                                 damage_taken = self.game_state.handle_head_hit(i)
                                 if damage_taken:
-                                    head_hits_display.append("LIFE LOST!")
+                                    head_hits_display.append("ライフ -1！")
                                     self.audio_mgr.play_head_hit()
                                 else:
-                                    head_hits_display.append("INVULNERABLE")
+                                    head_hits_display.append("無敵中")
                     if head_hits_display:
                         # Show head message for a short duration
                         # Match OpenCV messages
@@ -401,7 +401,7 @@ def main() -> None:
                     if hand_hits > 0:
                         self.audio_mgr.play_hand_hit()
                         # Show hand message briefly
-                        self.hand_msg_text.text = f"HAND HIT x{hand_hits}"
+                        self.hand_msg_text.text = f"手ヒット x{hand_hits}"
                         self._hand_msg_until = time.time() + 1.0
                         for (px, py) in hand_events.get("positions", []):
                             self.effects.spawn_explosion(
@@ -504,11 +504,11 @@ def main() -> None:
                     p1 = self.game_state.get_player(0)
                     p2 = self.game_state.get_player(1)
                     self.p1_score_text.text = f"P1 Score: {p1.score}"
-                    self.p1_lives_text.text = "GAME OVER" if p1.is_game_over else f"P1 Lives: {p1.lives}"
+                    self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"P1 Lives: {p1.lives}"
                     # Match OpenCV coloring: green normally, red when low lives (<=1), invulnerable, or game over
                     self.p1_lives_text.color = (255, 50, 50) if (p1.is_game_over or p1.is_invulnerable() or p1.lives <= 1) else (100, 255, 100)
                     self.p2_score_text.text = f"P2 Score: {p2.score}"
-                    self.p2_lives_text.text = "GAME OVER" if p2.is_game_over else f"P2 Lives: {p2.lives}"
+                    self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"P2 Lives: {p2.lives}"
                     self.p2_lives_text.color = (255, 50, 50) if (p2.is_game_over or p2.is_invulnerable() or p2.lives <= 1) else (100, 255, 100)
                     # FPS
                     self.fps_text.text = f"FPS: {self.fps:.1f}"
@@ -805,10 +805,10 @@ def main() -> None:
                             # Try to damage the player (respects invulnerability)
                             damage_taken = game_state.handle_head_hit(i)
                             if damage_taken:
-                                head_hits_display.append("LIFE LOST!")
+                                head_hits_display.append("ライフ -1！")
                                 audio_mgr.play_head_hit()  # (b) hit a rock on the head (bad)
                             else:
-                                head_hits_display.append("INVULNERABLE")
+                                head_hits_display.append("無敵中")
 
                 # Display head hit messages
                 for idx, msg in enumerate(head_hits_display):
@@ -824,7 +824,7 @@ def main() -> None:
                     hand_events = rock_mgr.handle_collisions(kind="hands", circles=hand_circles)
                 hand_hits = hand_events.get("hits", 0)
                 if hand_hits > 0:
-                    putText_with_outline(frame, f"HAND HIT x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3)
+                    putText_with_outline(frame, f"手ヒット x{hand_hits}", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (20, 180, 20), 3)
                     audio_mgr.play_hand_hit()  # (c) hit a rock on the hands (a bit good)
                     # Spawn brighter blue-ish, shorter, downward explosion for hand hits
                     for (px, py) in hand_events.get("positions", []):
@@ -935,7 +935,7 @@ def main() -> None:
                         score_text = f"Score: {player.score}"
                         lives_color = (50, 50, 255) if player.lives <= 1 else (100, 255, 100)
                         if player.is_game_over:
-                            lives_text = "GAME OVER"
+                            lives_text = "ゲームオーバー"
                             lives_color = (50, 50, 255)
                         else:
                             lives_text = f"Lives: {player.lives}"
@@ -1065,7 +1065,7 @@ def main() -> None:
                         put_centered(right_msg, right_center[0], right_center[1], 1.4, (0, 255, 255))
 
                         # Show restart instructions centered (gesture)
-                        restart_msg = "Raise a hand over head for 2s to restart (countdown)"
+                        restart_msg = "てを　あたまの うえに 2びょう で　リスタート"
                         (rw, rh), _ = cv2.getTextSize(restart_msg, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
                         rx = w // 2 - rw // 2
                         ry = h // 2 + 60
