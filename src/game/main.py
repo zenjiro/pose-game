@@ -261,6 +261,11 @@ def main() -> None:
                 self.latest_frame = latest_frame
                 self.latest_pose = latest_pose
                 self.pipeline_enabled = bool(args.pipeline)
+                # Thread references and stop events (if pipeline enabled)
+                self.cap_stop_event = cap_stop_event if args.pipeline else None
+                self.infer_stop_event = infer_stop_event if args.pipeline else None
+                self.cam_thread = cam_thread if args.pipeline and 'cam_thread' in locals() else None
+                self.infer_thread = infer_thread if args.pipeline and 'infer_thread' in locals() else None
                 self.texture = None
                 self.bg_sprite = arcade.Sprite(center_x=WIDTH/2, center_y=HEIGHT/2)
                 self.bg_sprite.width = WIDTH
@@ -519,6 +524,81 @@ def main() -> None:
                             self.close()
                         except Exception:
                             pass
+                    # C to cycle camera (Arcade path)
+                    elif symbol == _arcade.key.C:
+                        try:
+                            if not hasattr(self, 'camera_indices'):
+                                # Initialize camera cycling state from outer scope
+                                self.camera_indices = list(camera_indices)
+                                self.current_cam_pos = int(current_cam_pos)
+                                self.idx = int(idx)
+                                self.open_camera_with_cli = open_camera_with_cli
+                            if len(self.camera_indices) <= 1:
+                                print("[INFO] Only one camera available; cannot cycle.")
+                                return
+                            next_pos = (self.current_cam_pos + 1) % len(self.camera_indices)
+                            if next_pos == self.current_cam_pos:
+                                print("[INFO] No other cameras to switch to.")
+                                return
+                            prev_pos = self.current_cam_pos
+                            prev_idx = self.idx
+                            # If pipeline is enabled, stop the capture thread first
+                            if getattr(self, 'pipeline_enabled', False):
+                                try:
+                                    if hasattr(self, 'cap_stop_event') and self.cap_stop_event is not None:
+                                        self.cap_stop_event.set()
+                                    if hasattr(self, 'cam_thread') and self.cam_thread is not None:
+                                        try:
+                                            self.cam_thread.join(timeout=1.0)
+                                        except Exception:
+                                            pass
+                                    if hasattr(self, 'cap_stop_event') and self.cap_stop_event is not None:
+                                        # Reuse the same event object
+                                        try:
+                                            self.cap_stop_event.clear()
+                                        except Exception:
+                                            pass
+                                except Exception:
+                                    pass
+                            # Release current camera to avoid backend lock-ups (e.g., Windows DSHOW)
+                            try:
+                                if hasattr(self, 'cap') and self.cap is not None:
+                                    self.cap.release()
+                            except Exception:
+                                pass
+                            time.sleep(0.15)
+                            # Open next camera
+                            idx_next, cap_next = self.open_camera_with_cli(next_pos)
+                            if cap_next is not None and cap_next.isOpened():
+                                self.cap = cap_next
+                                self.idx = idx_next
+                                self.current_cam_pos = next_pos
+                                if getattr(self, 'pipeline_enabled', False):
+                                    # Restart capture thread with new cap but same LatestFrame and stop event
+                                    try:
+                                        self.cam_thread = CameraCaptureThread(self.cap, self.latest_frame, self.cap_stop_event)
+                                        self.cam_thread.start()
+                                    except Exception as e:
+                                        print(f"[WARN] Failed to restart camera thread: {e}")
+                                print(f"[INFO] Switched to camera index {self.idx} (position {self.current_cam_pos+1}/{len(self.camera_indices)}).")
+                            else:
+                                print(f"[WARN] Could not open camera at index {self.camera_indices[next_pos]}. Reverting to {prev_idx}.")
+                                # Try to reopen previous camera
+                                idx_prev, cap_prev = self.open_camera_with_cli(prev_pos)
+                                if cap_prev is not None and cap_prev.isOpened():
+                                    self.cap = cap_prev
+                                    self.idx = idx_prev
+                                    self.current_cam_pos = prev_pos
+                                    if getattr(self, 'pipeline_enabled', False):
+                                        try:
+                                            self.cam_thread = CameraCaptureThread(self.cap, self.latest_frame, self.cap_stop_event)
+                                            self.cam_thread.start()
+                                        except Exception as e:
+                                            print(f"[ERROR] Failed to restart previous camera thread: {e}")
+                                else:
+                                    print("[ERROR] Failed to reopen previous camera; keeping current state.")
+                        except Exception as e:
+                            print(f"[ERROR] Camera switch failed (Arcade): {e}")
                 except Exception:
                     pass
 
@@ -641,10 +721,22 @@ def main() -> None:
             except Exception:
                 pass
             try:
-                if 'infer_thread' in locals():
+                # Join any known threads started before window creation
+                if 'infer_thread' in locals() and infer_thread is not None:
                     infer_thread.join(timeout=1.0)
-                if 'cam_thread' in locals():
+                if 'cam_thread' in locals() and cam_thread is not None:
                     cam_thread.join(timeout=1.0)
+                # Also join the latest threads managed by the window (if they were restarted)
+                if hasattr(win, 'infer_thread') and getattr(win, 'infer_thread') is not None:
+                    try:
+                        win.infer_thread.join(timeout=1.0)
+                    except Exception:
+                        pass
+                if hasattr(win, 'cam_thread') and getattr(win, 'cam_thread') is not None:
+                    try:
+                        win.cam_thread.join(timeout=1.0)
+                    except Exception:
+                        pass
             except Exception:
                 pass
         return
