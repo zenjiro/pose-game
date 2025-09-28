@@ -365,6 +365,35 @@ G) OSD（9）
   - --capture-width/height は 1280x720 推奨
   - --tasks-model models/pose_landmarker_lite.task（delegate は CPU 前提、現環境では GPU/NNAPI は不利）
 
+12.5 10秒比較: OpenCV vs Arcade（infer-size=192, skip-first=1）
+- コマンド:
+  - OpenCV:  uv run python -m game.main --profile --profile-csv runs/opencv_10s.csv --max-seconds 10 --infer-size 192
+  - Arcade:  uv run python -m game.main --arcade --profile --profile-csv runs/arcade_10s.csv --max-seconds 10 --infer-size 192
+  - 比較:    uv run python scripts/compare_profiles.py runs/opencv_10s.csv runs/arcade_10s.csv --skip-first 1 --out md
+- フレーム数: OpenCV 51, Arcade 129
+- Overall:
+  - OpenCV: frame_ms 103.16 ms（9.69 fps）
+  - Arcade: frame_ms 76.22 ms（13.12 fps）
+  - Δ: -26.94 ms（+3.43 fps）→ Arcade が有利
+- セクション平均（ms, frame比）:
+  - camera_read: 1.38 (1.3%) → 0.97 (1.3%)  Δ -0.42
+  - pose_infer: 69.94 (67.8%) → 61.41 (80.6%)  Δ -8.53
+  - draw_camera: 0.76 (0.7%) → 3.62 (4.7%)  Δ +2.86
+  - draw_pose: 0.69 (0.7%) → 0.36 (0.5%)  Δ -0.33
+  - draw_rocks: 0.02 (0.0%) → 0.33 (0.4%)  Δ +0.31
+  - draw_fx: 3.68 (3.6%) → 0.67 (0.9%)  Δ -3.01
+  - draw_osd: 0.23 (0.2%) → 1.12 (1.5%)  Δ +0.89
+- 所見:
+  1) Arcade が約 27 ms/フレーム高速（~+3.4 fps）
+  2) pose_infer が依然支配的（Arcade でも ~61 ms）
+  3) HUD を Text オブジェクト化後の draw_osd は ~1.1 ms と許容範囲
+  4) draw_fx は Arcade が軽い一方、OpenCV は重い傾向
+  5) draw_camera は Arcade で増加（pyglet blit）
+- 次アクション（P3-1 関連）:
+  - Arcade: Rocks を SpriteList/Geometry でバッチ化、〇アウトラインの Geometry/instancing 検証
+  - Render-only モード（カメラ/推論を凍結）で draw_* の純粋コストを隔離
+  - duplicate 条件/20〜30s で再計測し、draw_* 合計と frame_ms を比較
+
 15. トラッキング（任意）
 - Jira: Phase 0 完了、Phase 1/2/3 のタスクを作成（推論サイズ/頻度、capture CLI、エフェクト軽量化、Arcade Text 化、分離ベンチ）
 - Confluence: ベースライン結果・CSV・所見を記録（この plan.md の要約＋グラフ）
