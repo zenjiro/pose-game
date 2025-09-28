@@ -182,6 +182,25 @@ def main() -> None:
             self.game_state = game_state
             self.effects = effects
             self.args = args
+            # Shader-based HUD outline (T8) initialization
+            self.hud_shader_ok = False
+            if getattr(self.args, 'hud_outline_shader', False):
+                try:
+                    import array
+                    self.ctx  # ensure context exists
+                    vs = """#version 330\nin vec2 in_vert; out vec2 v_uv; void main(){ v_uv = in_vert*0.5+0.5; gl_Position = vec4(in_vert,0.0,1.0);}"""
+                    fs = """#version 330\nuniform sampler2D u_tex; uniform vec2 u_texel; uniform vec4 u_outline_color; in vec2 v_uv; out vec4 f_color; void main(){ vec4 base = texture(u_tex, v_uv); if(base.a>0.0){ f_color = base; return; } float a = 0.0; for(int dx=-1; dx<=1; ++dx){ for(int dy=-1; dy<=1; ++dy){ if(dx==0 && dy==0) continue; vec2 off = vec2(dx,dy)*u_texel; a = max(a, texture(u_tex, v_uv+off).a); }} if(a>0.0){ f_color = u_outline_color; } else { discard; } }"""
+                    self.outline_program = self.ctx.program(vertex_shader=vs, fragment_shader=fs)
+                    import arcade
+                    self.hud_fbo = self.ctx.framebuffer(color_attachments=[self.ctx.texture((WIDTH, HEIGHT), components=4)])
+                    quad_data = array.array('f', [-1,-1, 1,-1, -1,1, 1,-1, 1,1, -1,1])
+                    self.fullscreen_vbo = self.ctx.buffer(quad_data.tobytes())
+                    self.fullscreen_quad = self.ctx.geometry([("in_vert", "f2")], self.fullscreen_vbo)
+                    self._shader_text_queue: list = []
+                    self.hud_shader_ok = True
+                except Exception as e:
+                    print(f"[WARN] HUD outline shader init failed: {e}")
+                    self.hud_shader_ok = False
             # Prefer JP-capable fonts to avoid pyglet DirectWrite issues on Windows
             self.jp_fonts = [
                 "Meiryo", "Yu Gothic UI", "Yu Gothic", "MS Gothic",
@@ -699,49 +718,85 @@ def main() -> None:
                     self._safe_draw_text(t, outline_texts)
             # Draw transient event messages (similar to OpenCV OSD)
             now_t = time.time()
-            if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
-                self._safe_draw_text(self.head_msg_text, self.head_msg_outline_texts)
-            if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
-                self._safe_draw_text(self.hand_msg_text, self.hand_msg_outline_texts)
-            # Optionally show profiler OSD in Arcade window title
-            # Draw title screen texts if game hasn't started
-            if not self.game_state.game_started and self._title_texts is not None:
-                for i, t in enumerate(self._title_texts):
-                    outline_texts = self._title_outline_texts[i] if i < len(self._title_outline_texts) else None
-                    self._safe_draw_text(t, outline_texts)
-            
-            # Draw game over screen
-            if self.game_state.game_over:
-                winner = self.game_state.get_winner()
-                if winner == 0:
-                    left_msg = "かち！"
-                    right_msg = "まけ…"
-                elif winner == 1:
-                    left_msg = "まけ…"
-                    right_msg = "かち！"
-                else:
-                    left_msg = "ひきわけ"
-                    right_msg = "ひきわけ"
-                
-                if not hasattr(self, 'game_over_texts'):
-                    self.game_over_texts = {
-                        "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
-                        "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
-                        "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, (100, 255, 100), 26, anchor_x="center", font_name=self.arcade_font_name)
-                    }
-                    # Create outline texts for game over screen
-                    self.game_over_outline_texts = {
-                        "left": self._create_outline_texts(self.game_over_texts["left"]),
-                        "right": self._create_outline_texts(self.game_over_texts["right"]),
-                        "restart": self._create_outline_texts(self.game_over_texts["restart"])
-                    }
-                
-                self.game_over_texts["left"].text = left_msg
-                self.game_over_texts["right"].text = right_msg
-                
-                self._safe_draw_text(self.game_over_texts["left"], self.game_over_outline_texts["left"])
-                self._safe_draw_text(self.game_over_texts["right"], self.game_over_outline_texts["right"])
-                self._safe_draw_text(self.game_over_texts["restart"], self.game_over_outline_texts["restart"])
+            if self.hud_shader_ok:
+                # Shader path: first render HUD-related texts into FBO using normal draw path (no outlines), then composite with outline shader
+                try:
+                    self.hud_fbo.clear(0,0,0,0)
+                    with self.hud_fbo.activate():
+                        # Draw base (head/hand messages + title + game over) without outlines
+                        if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
+                            self.head_msg_text.draw()
+                        if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
+                            self.hand_msg_text.draw()
+                        if not self.game_state.game_started and self._title_texts is not None:
+                            for t in self._title_texts:
+                                t.draw()
+                        if self.game_state.game_over:
+                            winner = self.game_state.get_winner()
+                            if winner == 0:
+                                left_msg = "かち！"; right_msg = "まけ…"
+                            elif winner == 1:
+                                left_msg = "まけ…"; right_msg = "かち！"
+                            else:
+                                left_msg = right_msg = "ひきわけ"
+                            if not hasattr(self, 'game_over_texts'):
+                                self.game_over_texts = {
+                                    "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
+                                    "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
+                                    "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, (100, 255, 100), 26, anchor_x="center", font_name=self.arcade_font_name)
+                                }
+                            self.game_over_texts["left"].text = left_msg
+                            self.game_over_texts["right"].text = right_msg
+                            self.game_over_texts["left"].draw(); self.game_over_texts["right"].draw(); self.game_over_texts["restart"].draw()
+                        # HUD main texts (timer, scores, lives, FPS)
+                        if hasattr(self, 'hud_texts'):
+                            for t in self.hud_texts:
+                                t.draw()
+                    # Composite with outline shader: sample alpha neighborhood to create outline
+                    tex = self.hud_fbo.color_attachments[0]
+                    self.outline_program['u_tex'] = 0
+                    self.outline_program['u_texel'] = (1.0/tex.width, 1.0/tex.height)
+                    self.outline_program['u_outline_color'] = (0.0,0.0,0.0,1.0)
+                    tex.use(0)
+                    self.fullscreen_quad.render(self.outline_program)
+                except Exception as e:
+                    if not hasattr(self, '_shader_fail_reported'):
+                        print(f"[WARN] HUD shader path failed, falling back: {e}")
+                        self._shader_fail_reported = True
+                    self.hud_shader_ok = False
+            else:
+                if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
+                    self._safe_draw_text(self.head_msg_text, self.head_msg_outline_texts)
+                if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
+                    self._safe_draw_text(self.hand_msg_text, self.hand_msg_outline_texts)
+                if not self.game_state.game_started and self._title_texts is not None:
+                    for i, t in enumerate(self._title_texts):
+                        outline_texts = self._title_outline_texts[i] if i < len(self._title_outline_texts) else None
+                        self._safe_draw_text(t, outline_texts)
+                if self.game_state.game_over:
+                    winner = self.game_state.get_winner()
+                    if winner == 0:
+                        left_msg = "かち！"; right_msg = "まけ…"
+                    elif winner == 1:
+                        left_msg = "まけ…"; right_msg = "かち！"
+                    else:
+                        left_msg = right_msg = "ひきわけ"
+                    if not hasattr(self, 'game_over_texts'):
+                        self.game_over_texts = {
+                            "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
+                            "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, (255, 255, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
+                            "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, (100, 255, 100), 26, anchor_x="center", font_name=self.arcade_font_name)
+                        }
+                        self.game_over_outline_texts = {
+                            "left": self._create_outline_texts(self.game_over_texts["left"]),
+                            "right": self._create_outline_texts(self.game_over_texts["right"]),
+                            "restart": self._create_outline_texts(self.game_over_texts["restart"])
+                        }
+                    self.game_over_texts["left"].text = left_msg
+                    self.game_over_texts["right"].text = right_msg
+                    self._safe_draw_text(self.game_over_texts["left"], self.game_over_outline_texts["left"])
+                    self._safe_draw_text(self.game_over_texts["right"], self.game_over_outline_texts["right"])
+                    self._safe_draw_text(self.game_over_texts["restart"], self.game_over_outline_texts["restart"])
 
 
             self.prof.end_frame({"backend": "arcade"})
