@@ -116,5 +116,21 @@ uv の詳細は https://docs.astral.sh/uv/ を参照してください。
 
 ---
 
+---
+
+## プロファイリング (計測)
+- 実行時間の計測は `--profile-csv` オプションで有効化します。
+- `--profile` と `--profile-osd` は廃止されました。CSV 指定のみでプロファイラが起動します。
+- 例:
+```
+uv run python -m game.main --profile-csv profile.csv
+```
+- 出力される CSV 列 (ms 単位):
+  - frame_ms (1 フレーム全体)
+  - camera_read / pose_infer / draw_camera / draw_pose / draw_rocks / collide / draw_fx / sfx / draw_osd
+- フレーム時間から FPS を計算するには: `FPS = 1000 / frame_ms`。
+- OSD 表示によるリアルタイム統計機能は削除しました。必要に応じて表計算ソフト等で集計してください。
+
+
 ## ライセンス
 このリポジトリのライセンスは `LICENSE` を参照してください。

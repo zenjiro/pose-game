@@ -63,3 +63,9 @@ Requirements coverage and recent implementation
 - Lives system: Players start with 3 lives; head hit reduces life by 1 with invulnerability frames; game over when any player reaches 0.
 - Audio system: Integrated sounds for start, head/hand/foot hits, hurry alarm, game over, rock drop. Graceful fallback if missing files.
 - Camera UI: Removed initial camera selection GUI; replaced with auto-detection and runtime C-key cycling. -c still selects initial camera.
+
+Profiling changes
+- CLI flags --profile and --profile-osd were removed.
+- Profiler now activates only when --profile-csv <path> is supplied; this writes per-frame timing CSV (sections: camera_read, pose_infer, draw_camera, draw_pose, draw_rocks, collide, draw_fx, sfx, draw_osd, plus frame_ms).
+- Any logic relying on args.profile or args.profile_osd should be updated to check args.profile_csv instead.
+
