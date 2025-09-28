@@ -204,8 +204,13 @@ def main() -> None:
         import arcade
         import pyglet
         WIDTH, HEIGHT = 1280, 720
-
         class PoseGameWindow(arcade.Window):
+            """Arcade window for the game.
+
+            Notes:
+            - Text rendering can crash on some Windows/DirectWrite setups (pyglet IndexError in DWrite backend).
+              We wrap text draws in a safe helper and disable text if a failure is detected.
+            """
             def __init__(self):
                 super().__init__(WIDTH, HEIGHT, "Pose Game (Arcade)", fullscreen=True, update_rate=1/60)
                 arcade.set_background_color(arcade.color.BLACK)
@@ -236,8 +241,8 @@ def main() -> None:
                 except Exception:
                     self.arcade_font_name = None
                 if self.arcade_font_name is None:
-                    # Fallback to JP-capable family names list
-                    self.arcade_font_name = self.jp_fonts
+                    # Fallback to JP-capable family names list; Arcade expects str or tuple[str,...]
+                    self.arcade_font_name = tuple(self.jp_fonts)
                 self.last_frame_rgb = None
                 # Pipeline references
                 self.latest_frame = latest_frame
@@ -260,6 +265,8 @@ def main() -> None:
                 self._hand_msg_until = 0.0
                 # Title screen texts (lazy initialized)
                 self._title_texts = None
+                # Guard to disable text rendering if pyglet/DirectWrite misbehaves
+                self._text_ok = True
 
             def on_update(self, dt: float):
                 now = time.time()
@@ -481,6 +488,15 @@ def main() -> None:
                     print(f"[Arcade] Image update failed: {e}")
                     # Keep previous image to avoid flicker; do not nullify pg_image
 
+            def _safe_draw_text(self, text_obj):
+                if not getattr(self, '_text_ok', True):
+                    return
+                try:
+                    text_obj.draw()
+                except Exception as e:
+                    print(f"[Arcade] Text draw disabled due to error: {e}")
+                    self._text_ok = False
+
             def on_draw(self):
                 self.clear()
                 # Draw background camera frame
@@ -547,18 +563,18 @@ def main() -> None:
                     self.fps_text.text = f"FPS: {self.fps:.1f}"
                     # Draw all HUD texts
                     for t in self.hud_texts:
-                        t.draw()
+                        self._safe_draw_text(t)
                 # Draw transient event messages (similar to OpenCV OSD)
                 now_t = time.time()
                 if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
-                    self.head_msg_text.draw()
+                    self._safe_draw_text(self.head_msg_text)
                 if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
-                    self.hand_msg_text.draw()
+                    self._safe_draw_text(self.hand_msg_text)
                 # Optionally show profiler OSD in Arcade window title
                 # Draw title screen texts if game hasn't started
                 if not self.game_state.game_started and self._title_texts is not None:
                     for t in self._title_texts:
-                        t.draw()
+                        self._safe_draw_text(t)
                 if self.args.profile_osd:
                     avg = self.prof.get_averages()
                     frame_ms = avg.get("frame_total", 0.0)
