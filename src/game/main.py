@@ -506,6 +506,22 @@ def main() -> None:
                     print(f"[Arcade] Image update failed: {e}")
                     # Keep previous image to avoid flicker; do not nullify pg_image
 
+            def on_key_press(self, symbol, modifiers):
+                # ESC to quit the Arcade game
+                try:
+                    import arcade as _arcade
+                    if symbol == _arcade.key.ESCAPE:
+                        try:
+                            _arcade.exit()
+                        except Exception:
+                            pass
+                        try:
+                            self.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
             def _safe_draw_text(self, text_obj):
                 if not getattr(self, '_text_ok', True):
                     return
