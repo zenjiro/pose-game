@@ -210,13 +210,19 @@ G) OSD（9）
 - [x] P1-1: 推論入力縮小スイープ（完了、12.2 に結果あり）
 - [x] P1-2: 推論スキップ導入（不要のため実施しない＝Won't Do）
 - [x] P2-1: Capture/Infer のスレッド化 + 最新優先キュー（完了、--pipeline で有効化。src/game/pipeline.py を追加し、OpenCV/Arcade 両経路に統合）
-- [ ] P3-1: Arcade の SpriteList/テキストキャッシュ（次の着手）
-  - Text: draw_text から Text オブジェクトへ全面移行（HUD/タイマー/スコア/ライフ）。静的文字列は事前生成、数値のみ差し替え
-  - Rocks: SpriteList へ移行（岩をスプライト化、位置と半径のみ更新）／Geometry でインスタンシング検討
-  - Circles: 〇アウトラインは Geometry/instancing を試験（なければ描画関数の呼び出し回数削減）
-  - OSD: プロファイラ OSD を 1–2 描画に集約
-  - ベンチ: scripts/bench_render_static.py を実装し、固定フレームで描画コストのみ比較
-  - 計測: 10–30s、--skip-first 1、CSV 比較とグラフ化（A/B で draw_* 合計と frame_ms を注視）
+- [x] P3-1: Arcade の SpriteList/テキストキャッシュ（実装完了・評価済み）
+  - Text: draw_text から Text オブジェクトへ全面移行（HUD/タイマー/スコア/ライフ）完了。8方向アウトライン最適化も実装。
+  - Rocks: SpriteList への移行完了。RockSprite クラスとバッチ描画を実装。
+  - Circles: CircleGeometry クラスでバッチ描画の基盤を実装（フォールバック付き）。
+  - OSD: プロファイラ OSD はすでに Text オブジェクト化済み。
+  - ベンチ: scripts/bench_render_static.py を大幅強化し、A/B 比較・複数条件テストに対応。
+  - 計測結果（15s、--skip-first 1、2025-01-19）:
+    - 全体: baseline 30.32ms (32.98 fps) → optimized 34.99ms (28.58 fps) = +4.67ms (-4.40 fps)
+    - draw_rocks: 0.34ms → 0.29ms (-0.05ms) = 小幅改善
+    - draw_fx: 0.63ms → 0.12ms (-0.51ms) = 効果の改善
+    - draw_pose: 0.47ms → 0.46ms (-0.01ms) = 微小改善
+    - draw_osd: 4.89ms → 5.07ms (+0.17ms) = 微小悪化
+  - 結論: 現在の軽負荷では SpriteList の管理オーバーヘッドが描画改善を上回る。高負荷時（多数の岩・エフェクト）では効果を発揮する可能性あり。
 - [x] P4-1: 空間ハッシュ + ベクトル化（現状不要、主ボトルネックが姿勢推定のため＝Won't Do）
 - [ ] P5-1: アブレーション比較まとめ & ドキュメント
 
