@@ -602,11 +602,69 @@ def main() -> None:
                 except Exception:
                     pass
 
+            def _draw_text_with_outline(self, text_obj, outline_color=(0, 0, 0), outline_width=2):
+                """Draw an arcade.Text with a black outline approximated by 4-offset draws.
+                This mimics the OpenCV path's outlined text. Width is fixed in pixels.
+                """
+                if text_obj is None:
+                    return
+                try:
+                    # Extract properties with sensible fallbacks
+                    txt = getattr(text_obj, 'text', '')
+                    x = float(getattr(text_obj, 'x', getattr(text_obj, 'start_x', 0)))
+                    y = float(getattr(text_obj, 'y', getattr(text_obj, 'start_y', 0)))
+                    color = getattr(text_obj, 'color', (255, 255, 255))
+                    font_size = int(getattr(text_obj, 'font_size', 12))
+                    width = int(getattr(text_obj, 'width', 0) or 0)
+                    align = getattr(text_obj, 'align', 'left')
+                    font_name = getattr(text_obj, 'font_name', getattr(self, 'arcade_font_name', None))
+                    bold = bool(getattr(text_obj, 'bold', False))
+                    italic = bool(getattr(text_obj, 'italic', False))
+                    anchor_x = getattr(text_obj, 'anchor_x', 'left')
+                    anchor_y = getattr(text_obj, 'anchor_y', 'baseline')
+                    rotation = float(getattr(text_obj, 'rotation', 0.0))
+
+                    # Four-direction outline
+                    for dx, dy in ((-outline_width, 0), (outline_width, 0), (0, -outline_width), (0, outline_width)):
+                        arcade.draw_text(
+                            txt, x + dx, y + dy,
+                            outline_color,
+                            font_size,
+                            width=width,
+                            align=align,
+                            font_name=font_name,
+                            bold=bold,
+                            italic=italic,
+                            anchor_x=anchor_x,
+                            anchor_y=anchor_y,
+                            rotation=rotation,
+                        )
+                    # Main text
+                    arcade.draw_text(
+                        txt, x, y,
+                        color,
+                        font_size,
+                        width=width,
+                        align=align,
+                        font_name=font_name,
+                        bold=bold,
+                        italic=italic,
+                        anchor_x=anchor_x,
+                        anchor_y=anchor_y,
+                        rotation=rotation,
+                    )
+                except Exception as e:
+                    # Fall back to default draw if our manual path fails
+                    try:
+                        text_obj.draw()
+                    except Exception:
+                        raise e
+
             def _safe_draw_text(self, text_obj):
                 if not getattr(self, '_text_ok', True):
                     return
                 try:
-                    text_obj.draw()
+                    self._draw_text_with_outline(text_obj, outline_color=(0, 0, 0), outline_width=2)
                 except Exception as e:
                     print(f"[Arcade] Text draw disabled due to error: {e}")
                     self._text_ok = False
