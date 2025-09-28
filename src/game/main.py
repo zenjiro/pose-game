@@ -233,7 +233,7 @@ def main() -> None:
                 # Pre-allocate Text objects to avoid per-frame draw_text cost
                 self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 28, arcade.color.WHITE, 14)
                 # Event messages (head hits / hand hits)
-                self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (20, 20, 230), 32)
+                self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (230, 20, 20), 32)
                 self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32)
                 self._head_msg_until = 0.0
                 self._hand_msg_until = 0.0
@@ -388,6 +388,7 @@ def main() -> None:
                                     head_hits_display.append("INVULNERABLE")
                     if head_hits_display:
                         # Show head message for a short duration
+                        # Match OpenCV messages
                         self.head_msg_text.text = ", ".join(head_hits_display)
                         self._head_msg_until = time.time() + 1.5
                     # Hands collisions
@@ -504,8 +505,11 @@ def main() -> None:
                     p2 = self.game_state.get_player(1)
                     self.p1_score_text.text = f"P1 Score: {p1.score}"
                     self.p1_lives_text.text = "GAME OVER" if p1.is_game_over else f"P1 Lives: {p1.lives}"
+                    # Match OpenCV coloring: green normally, red when low lives (<=1), invulnerable, or game over
+                    self.p1_lives_text.color = (255, 50, 50) if (p1.is_game_over or p1.is_invulnerable() or p1.lives <= 1) else (100, 255, 100)
                     self.p2_score_text.text = f"P2 Score: {p2.score}"
                     self.p2_lives_text.text = "GAME OVER" if p2.is_game_over else f"P2 Lives: {p2.lives}"
+                    self.p2_lives_text.color = (255, 50, 50) if (p2.is_game_over or p2.is_invulnerable() or p2.lives <= 1) else (100, 255, 100)
                     # FPS
                     self.fps_text.text = f"FPS: {self.fps:.1f}"
                     # Draw all HUD texts
