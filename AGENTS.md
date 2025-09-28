@@ -36,7 +36,7 @@ Notes about behavior and current implementation
   - Press C at any time to cycle to the next camera index; the app releases the current capture and tries the next. If opening fails, it stays on the current camera.
 - Pose detection: PoseEstimator will try to use MediaPipe Tasks API (PoseLandmarker) when max_people>1 and Tasks is available; otherwise it uses the single-person Solutions API. It returns structured circle groups for drawing and collision checks.
 - Game objects: Rocks are spawned by RockManager with tunable parameters (spawn interval, speed, radius) and updated each frame.
-- Rendering: draw_circles() overlays head/hand/foot circles; draw_rocks() draws filled circles for rocks; put_fps() overlays FPS.
+- Rendering: Arcade is the default backend. draw_circles_arcade()/draw_rocks_arcade() are used for GPU rendering. Legacy OpenCV window rendering has been removed; OpenCV image ops are still used for camera and preprocessing.
 - Audio: AudioManager (arcade) plays UI/gameplay sounds (start, hits, countdown, game over, rock drop).
 
 Coding conventions and expectations for agents
@@ -56,7 +56,7 @@ Recommended tasks for a coding agent (examples)
 Developer tips and gotchas
 - MediaPipe Tasks API availability is runtime-dependent. Keep fallbacks and avoid hard crashes if Tasks is missing.
 - Windows camera names from PowerShell may not map 1:1 to OpenCV indices — treat names as hints only.
-- OpenCV's waitKeyEx codes vary by platform/keyboard; current key handling uses ESC (exit), SPACE/ENTER (start/restart), C/c (camera cycle).
+- Key handling (Arcade): ESC (exit), C/c (camera cycle). Title/start uses gesture (raise hand above head).
 - Keep per-frame work short: Pose inference is the slowest operation; consider throttling or using a separate thread if you add heavier game logic.
 
 Requirements coverage and recent implementation

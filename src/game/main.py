@@ -11,7 +11,6 @@ from .profiler import init_profiler, get_profiler
 
 from .camera import open_camera, list_available_cameras
 from .pose import PoseEstimator, Circle
-from .render import draw_circles, put_fps, draw_rocks
 from .effects import EffectsManager
 from .pipeline import LatestFrame, LatestPose, CameraCaptureThread, PoseInferThread, duplicate_center
 from .gameplay import RockManager
@@ -82,7 +81,7 @@ def main() -> None:
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
     # If not provided, we try to auto-detect a Japanese-capable font per OS
     parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
-    parser.add_argument("--arcade", action="store_true", help="Use Arcade window for rendering (GPU)")
+    parser.add_argument("--arcade", action="store_true", default=True, help="Use Arcade window for rendering (GPU) [default]")
     parser.add_argument("--profile", action="store_true", help="Enable frame profiling")
     parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV")
     parser.add_argument("--profile-osd", action="store_true", help="Overlay profiling stats (slight overhead)")
@@ -170,11 +169,7 @@ def main() -> None:
             print("Error: Could not open any camera. Exiting.")
             return
 
-    if not args.arcade:
-        window_name = "Pose Game"
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
+    
     pose = PoseEstimator(max_people=2, tasks_model=args.tasks_model)
     audio_mgr = AudioManager()
     rock_mgr = RockManager(width=1280, height=720, audio_manager=audio_mgr)

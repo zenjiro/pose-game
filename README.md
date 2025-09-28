@@ -43,9 +43,10 @@ uv add opencv-python mediapipe numpy
 uv add --dev black ruff mypy
 ```
 
-3) 実行（コード実装後）
+3) 実行（Arcade が既定のレンダリングです）
 ```
 uv run python -m game.main
+# --arcade は不要です（Arcade がデフォルト）。OpenCV ウィンドウ版は廃止されました。
 ```
 
 ### 日本語タイトル表示（任意）
