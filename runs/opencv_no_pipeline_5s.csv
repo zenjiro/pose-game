@@ -1,0 +1,3 @@
+ts,frame_ms,backend,camera_read,pose_infer,draw_camera,draw_pose,draw_rocks,collide,draw_fx,sfx,draw_osd
+1759018052.621307,130.513,opencv,0.944,88.804,1.044,1.385,0.000,0.000,0.000,0.000,0.263
+1759018052.715238,93.771,opencv,1.174,63.238,0.707,1.059,0.000,0.000,0.000,0.000,0.165

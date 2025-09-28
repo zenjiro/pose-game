@@ -455,10 +455,50 @@ def main() -> None:
                     draw_rocks_arcade(self.rock_mgr.rocks, HEIGHT)
                 with self.prof.section("draw_fx"):
                     self.effects.draw_arcade(HEIGHT, fps=self.fps)
-                # Draw simple HUD: FPS (Text object to avoid per-frame alloc)
+                # Draw HUD using persistent Text objects (avoid per-frame allocations)
                 with self.prof.section("draw_osd"):
+                    # Ensure Text objects are created once
+                    if not hasattr(self, 'hud_texts'):  # lazy init
+                        # Positions
+                        margin = 12
+                        # Timer centered at top
+                        self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 36, arcade.color.WHITE, 18, anchor_x="center")
+                        # P1 left
+                        self.p1_score_text = arcade.Text("P1 Score: 0", margin, HEIGHT - 60, (255, 0, 0), 14)
+                        self.p1_lives_text = arcade.Text("P1 Lives: 5", margin, HEIGHT - 80, arcade.color.WHITE, 12)
+                        # P2 right (right-aligned)
+                        self.p2_score_text = arcade.Text("P2 Score: 0", WIDTH - margin, HEIGHT - 60, (0, 0, 255), 14, anchor_x="right")
+                        self.p2_lives_text = arcade.Text("P2 Lives: 5", WIDTH - margin, HEIGHT - 80, arcade.color.WHITE, 12, anchor_x="right")
+                        # FPS at top-left below timer
+                        self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 28, arcade.color.WHITE, 14)
+                        self.hud_texts = [
+                            self.timer_text,
+                            self.p1_score_text, self.p1_lives_text,
+                            self.p2_score_text, self.p2_lives_text,
+                            self.fps_text,
+                        ]
+                    # Update dynamic texts
+                    # Timer
+                    if self.game_state.game_started and not self.game_state.game_over:
+                        remaining_time = self.game_state.get_remaining_time()
+                        display_time = int(max(0, math.ceil(remaining_time)))
+                    else:
+                        display_time = int(self.game_state.time_limit)
+                    minutes = display_time // 60
+                    seconds = display_time % 60
+                    self.timer_text.text = f"{minutes}:{seconds:02d}"
+                    # Scores/Lives
+                    p1 = self.game_state.get_player(0)
+                    p2 = self.game_state.get_player(1)
+                    self.p1_score_text.text = f"P1 Score: {p1.score}"
+                    self.p1_lives_text.text = "GAME OVER" if p1.is_game_over else f"P1 Lives: {p1.lives}"
+                    self.p2_score_text.text = f"P2 Score: {p2.score}"
+                    self.p2_lives_text.text = "GAME OVER" if p2.is_game_over else f"P2 Lives: {p2.lives}"
+                    # FPS
                     self.fps_text.text = f"FPS: {self.fps:.1f}"
-                    self.fps_text.draw()
+                    # Draw all HUD texts
+                    for t in self.hud_texts:
+                        t.draw()
                 # Optionally show profiler OSD in Arcade window title
                 if self.args.profile_osd:
                     avg = self.prof.get_averages()
