@@ -73,7 +73,6 @@ def main() -> None:
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
     parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
-    parser.add_argument("--pipeline", action="store_true", help="Enable threaded pipeline: capture thread + infer thread with latest-only queues")
     args = parser.parse_args()
 
 
@@ -146,16 +145,15 @@ def main() -> None:
     effects = EffectsManager()
     prof = get_profiler()
 
-    # Threaded pipeline (P2-1): capture thread + infer thread with latest-only queues
-    latest_frame = LatestFrame() if args.pipeline else None
-    latest_pose = LatestPose() if args.pipeline else None
-    cap_stop_event = threading.Event() if args.pipeline else None
-    infer_stop_event = threading.Event() if args.pipeline else None
-    if args.pipeline:
-        cam_thread = CameraCaptureThread(cap, latest_frame, cap_stop_event)
-        infer_thread = PoseInferThread(pose, latest_frame, latest_pose, infer_stop_event, infer_size=args.infer_size, duplicate=args.duplicate)
-        cam_thread.start()
-        infer_thread.start()
+    # Threaded pipeline: capture thread + infer thread with latest-only queues
+    latest_frame = LatestFrame()
+    latest_pose = LatestPose()
+    cap_stop_event = threading.Event()
+    infer_stop_event = threading.Event()
+    cam_thread = CameraCaptureThread(cap, latest_frame, cap_stop_event)
+    infer_thread = PoseInferThread(pose, latest_frame, latest_pose, infer_stop_event, infer_size=args.infer_size, duplicate=args.duplicate)
+    cam_thread.start()
+    infer_thread.start()
 
     prev = time.time()
     fps = 0.0
@@ -224,12 +222,12 @@ def main() -> None:
             # Pipeline references
             self.latest_frame = latest_frame
             self.latest_pose = latest_pose
-            self.pipeline_enabled = bool(args.pipeline)
-            # Thread references and stop events (if pipeline enabled)
-            self.cap_stop_event = cap_stop_event if args.pipeline else None
-            self.infer_stop_event = infer_stop_event if args.pipeline else None
-            self.cam_thread = cam_thread if args.pipeline and 'cam_thread' in locals() else None
-            self.infer_thread = infer_thread if args.pipeline and 'infer_thread' in locals() else None
+            self.pipeline_enabled = True
+            # Thread references and stop events
+            self.cap_stop_event = cap_stop_event
+            self.infer_stop_event = infer_stop_event
+            self.cam_thread = cam_thread
+            self.infer_thread = infer_thread
             self.texture = None
             self.bg_sprite = arcade.Sprite(center_x=WIDTH/2, center_y=HEIGHT/2)
             self.bg_sprite.width = WIDTH
@@ -263,56 +261,16 @@ def main() -> None:
                 self.fps = 0.9 * self.fps + 0.1 * (1.0 / dt)
             # Read camera
             self.prof.start_frame()
-            if self.pipeline_enabled and self.latest_frame and self.latest_pose:
-                with self.prof.section("camera_read"):
-                    f, _seq_f, _ts_f = self.latest_frame.get()
-                    if f is None:
-                        return
-                    frame_bgr = f.copy()
-                    if self.args.duplicate:
-                        frame_bgr = duplicate_center(frame_bgr)
-                with self.prof.section("pose_infer"):
-                    people, _seq_p, _ts_p = self.latest_pose.get()
-            else:
-                with self.prof.section("camera_read"):
-                    ok, frame_bgr = self.cap.read()
-                if not ok or frame_bgr is None:
-                    self._cam_fail += 1
-                    if self._cam_fail > 30:
-                        return
+
+            with self.prof.section("camera_read"):
+                f, _seq_f, _ts_f = self.latest_frame.get()
+                if f is None:
                     return
-                self._cam_fail = 0
-                # Pose processing
-                # Inference input resize and frame skipping (Arcade path)
-                h0, w0 = frame_bgr.shape[:2]
-                infer_frame = frame_bgr
-                scale_back_x = 1.0
-                scale_back_y = 1.0
-                if self.args.infer_size and self.args.infer_size > 0:
-                    short = min(w0, h0)
-                    target = int(self.args.infer_size)
-                    if target < short:
-                        if w0 <= h0:
-                            new_w = target
-                            new_h = int(h0 * (target / w0))
-                        else:
-                            new_h = target
-                            new_w = int(w0 * (target / h0))
-                        infer_frame = cv2.resize(frame_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
-                        scale_back_x = w0 / float(new_w)
-                        scale_back_y = h0 / float(new_h)
-                with self.prof.section("pose_infer"):
-                    ppl = self.pose.process(infer_frame)
-                if (scale_back_x != 1.0) or (scale_back_y != 1.0):
-                    people = []
-                    for p in ppl:
-                        newp = {"head": [], "hands": [], "feet": []}
-                        for k, lst in p.items():
-                            for c in lst:
-                                newp[k].append(Circle(int(c.x * scale_back_x), int(c.y * scale_back_y), int(c.r * (scale_back_x + scale_back_y) * 0.5)))
-                        people.append(newp)
-                else:
-                    people = ppl
+                frame_bgr = f.copy()
+                if self.args.duplicate:
+                    frame_bgr = duplicate_center(frame_bgr)
+            with self.prof.section("pose_infer"):
+                people, _seq_p, _ts_p = self.latest_pose.get()
 
             # Title/game start/restart gesture logic
             now_g = time.time()
@@ -489,24 +447,23 @@ def main() -> None:
                             return
                         prev_pos = self.current_cam_pos
                         prev_idx = self.idx
-                        # If pipeline is enabled, stop the capture thread first
-                        if getattr(self, 'pipeline_enabled', False):
-                            try:
-                                if hasattr(self, 'cap_stop_event') and self.cap_stop_event is not None:
-                                    self.cap_stop_event.set()
-                                if hasattr(self, 'cam_thread') and self.cam_thread is not None:
-                                    try:
-                                        self.cam_thread.join(timeout=1.0)
-                                    except Exception:
-                                        pass
-                                if hasattr(self, 'cap_stop_event') and self.cap_stop_event is not None:
-                                    # Reuse the same event object
-                                    try:
-                                        self.cap_stop_event.clear()
-                                    except Exception:
-                                        pass
-                            except Exception:
-                                pass
+                        # Stop the capture thread first
+                        try:
+                            if hasattr(self, 'cap_stop_event') and self.cap_stop_event is not None:
+                                self.cap_stop_event.set()
+                            if hasattr(self, 'cam_thread') and self.cam_thread is not None:
+                                try:
+                                    self.cam_thread.join(timeout=1.0)
+                                except Exception:
+                                    pass
+                            if hasattr(self, 'cap_stop_event') and self.cap_stop_event is not None:
+                                # Reuse the same event object
+                                try:
+                                    self.cap_stop_event.clear()
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
                         # Release current camera to avoid backend lock-ups (e.g., Windows DSHOW)
                         try:
                             if hasattr(self, 'cap') and self.cap is not None:
@@ -520,13 +477,12 @@ def main() -> None:
                             self.cap = cap_next
                             self.idx = idx_next
                             self.current_cam_pos = next_pos
-                            if getattr(self, 'pipeline_enabled', False):
-                                # Restart capture thread with new cap but same LatestFrame and stop event
-                                try:
-                                    self.cam_thread = CameraCaptureThread(self.cap, self.latest_frame, self.cap_stop_event)
-                                    self.cam_thread.start()
-                                except Exception as e:
-                                    print(f"[WARN] Failed to restart camera thread: {e}")
+                            # Restart capture thread with new cap but same LatestFrame and stop event
+                            try:
+                                self.cam_thread = CameraCaptureThread(self.cap, self.latest_frame, self.cap_stop_event)
+                                self.cam_thread.start()
+                            except Exception as e:
+                                print(f"[WARN] Failed to restart camera thread: {e}")
                             print(f"[INFO] Switched to camera index {self.idx} (position {self.current_cam_pos+1}/{len(self.camera_indices)}).")
                         else:
                             print(f"[WARN] Could not open camera at index {self.camera_indices[next_pos]}. Reverting to {prev_idx}.")
@@ -536,12 +492,11 @@ def main() -> None:
                                 self.cap = cap_prev
                                 self.idx = idx_prev
                                 self.current_cam_pos = prev_pos
-                                if getattr(self, 'pipeline_enabled', False):
-                                    try:
-                                        self.cam_thread = CameraCaptureThread(self.cap, self.latest_frame, self.cap_stop_event)
-                                        self.cam_thread.start()
-                                    except Exception as e:
-                                        print(f"[ERROR] Failed to restart previous camera thread: {e}")
+                                try:
+                                    self.cam_thread = CameraCaptureThread(self.cap, self.latest_frame, self.cap_stop_event)
+                                    self.cam_thread.start()
+                                except Exception as e:
+                                    print(f"[ERROR] Failed to restart previous camera thread: {e}")
                             else:
                                 print("[ERROR] Failed to reopen previous camera; keeping current state.")
                     except Exception as e:
@@ -753,34 +708,33 @@ def main() -> None:
         t = _th.Thread(target=stop_after_delay, daemon=True)
         t.start()
         arcade.run()
-    # If pipeline is enabled, stop threads before exiting Arcade path
-    if args.pipeline:
-        try:
-            if infer_stop_event:
-                infer_stop_event.set()
-            if cap_stop_event:
-                cap_stop_event.set()
-        except Exception:
-            pass
-        try:
-            # Join any known threads started before window creation
-            if 'infer_thread' in locals() and infer_thread is not None:
-                infer_thread.join(timeout=1.0)
-            if 'cam_thread' in locals() and cam_thread is not None:
-                cam_thread.join(timeout=1.0)
-            # Also join the latest threads managed by the window (if they were restarted)
-            if hasattr(win, 'infer_thread') and getattr(win, 'infer_thread') is not None:
-                try:
-                    win.infer_thread.join(timeout=1.0)
-                except Exception:
-                    pass
-            if hasattr(win, 'cam_thread') and getattr(win, 'cam_thread') is not None:
-                try:
-                    win.cam_thread.join(timeout=1.0)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+    # Stop threads before exiting
+    try:
+        if infer_stop_event:
+            infer_stop_event.set()
+        if cap_stop_event:
+            cap_stop_event.set()
+    except Exception:
+        pass
+    try:
+        # Join any known threads started before window creation
+        if 'infer_thread' in locals() and infer_thread is not None:
+            infer_thread.join(timeout=1.0)
+        if 'cam_thread' in locals() and cam_thread is not None:
+            cam_thread.join(timeout=1.0)
+        # Also join the latest threads managed by the window (if they were restarted)
+        if hasattr(win, 'infer_thread') and getattr(win, 'infer_thread') is not None:
+            try:
+                win.infer_thread.join(timeout=1.0)
+            except Exception:
+                pass
+        if hasattr(win, 'cam_thread') and getattr(win, 'cam_thread') is not None:
+            try:
+                win.cam_thread.join(timeout=1.0)
+            except Exception:
+                pass
+    except Exception:
+        pass
     return
 
 
