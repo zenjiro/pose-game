@@ -191,11 +191,18 @@ def main() -> None:
                     vs = """#version 330\nin vec2 in_vert; out vec2 v_uv; void main(){ v_uv = in_vert*0.5+0.5; gl_Position = vec4(in_vert,0.0,1.0);}"""
                     fs = """#version 330\nuniform sampler2D u_tex; uniform vec2 u_texel; uniform vec4 u_outline_color; in vec2 v_uv; out vec4 f_color; void main(){ vec4 base = texture(u_tex, v_uv); if(base.a>0.0){ f_color = base; return; } float a = 0.0; for(int dx=-1; dx<=1; ++dx){ for(int dy=-1; dy<=1; ++dy){ if(dx==0 && dy==0) continue; vec2 off = vec2(dx,dy)*u_texel; a = max(a, texture(u_tex, v_uv+off).a); }} if(a>0.0){ f_color = u_outline_color; } else { discard; } }"""
                     self.outline_program = self.ctx.program(vertex_shader=vs, fragment_shader=fs)
-                    import arcade
-                    self.hud_fbo = self.ctx.framebuffer(color_attachments=[self.ctx.texture((WIDTH, HEIGHT), components=4)])
+                    # Create a color texture and attach to FBO (Arcade GL API)
+                    color_tex = self.ctx.texture((WIDTH, HEIGHT), components=4)
+                    self.hud_fbo = self.ctx.framebuffer(color_attachments=[color_tex])
                     quad_data = array.array('f', [-1,-1, 1,-1, -1,1, 1,-1, 1,1, -1,1])
-                    self.fullscreen_vbo = self.ctx.buffer(quad_data.tobytes())
-                    self.fullscreen_quad = self.ctx.geometry([("in_vert", "f2")], self.fullscreen_vbo)
+                    self.fullscreen_vbo = self.ctx.buffer(data=quad_data.tobytes())
+                    # Fallback path: use geometry() descriptor if simple_vertex_array isn't available
+                    try:
+                        self.fullscreen_vao = self.ctx.simple_vertex_array(self.outline_program, self.fullscreen_vbo, "in_vert")
+                    except Exception:
+                        from arcade.gl import BufferDescription
+                        desc = BufferDescription(self.fullscreen_vbo, '2f', ['in_vert'])
+                        self.fullscreen_vao = self.ctx.geometry([desc])
                     self._shader_text_queue: list = []
                     self.hud_shader_ok = True
                 except Exception as e:
@@ -260,8 +267,8 @@ def main() -> None:
             self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (230, 20, 20), 32, font_name=self.arcade_font_name)
             self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32, font_name=self.arcade_font_name)
             # Create outline texts for event messages (not for FPS as it changes frequently)
-            self.head_msg_outline_texts = self._create_outline_texts(self.head_msg_text)
-            self.hand_msg_outline_texts = self._create_outline_texts(self.hand_msg_text)
+            self.head_msg_outline_texts = [] if self.hud_shader_ok else self._create_outline_texts(self.head_msg_text)
+            self.hand_msg_outline_texts = [] if self.hud_shader_ok else self._create_outline_texts(self.hand_msg_text)
             self._head_msg_until = 0.0
             self._hand_msg_until = 0.0
             # Title screen texts (lazy initialized)
@@ -682,14 +689,17 @@ def main() -> None:
                         self.fps_text,
                     ]
                     # Create outline texts for HUD elements (except FPS which changes frequently)
-                    self.hud_outline_texts = [
-                        self._create_outline_texts(self.timer_text),
-                        self._create_outline_texts(self.p1_score_text), 
-                        self._create_outline_texts(self.p1_lives_text),
-                        self._create_outline_texts(self.p2_score_text), 
-                        self._create_outline_texts(self.p2_lives_text),
-                        []  # Empty for FPS text
-                    ]
+                    if self.hud_shader_ok:
+                        self.hud_outline_texts = [[], [], [], [], [], []]
+                    else:
+                        self.hud_outline_texts = [
+                            self._create_outline_texts(self.timer_text),
+                            self._create_outline_texts(self.p1_score_text), 
+                            self._create_outline_texts(self.p1_lives_text),
+                            self._create_outline_texts(self.p2_score_text), 
+                            self._create_outline_texts(self.p2_lives_text),
+                            []  # Empty for FPS text
+                        ]
                 # Update dynamic texts
                 # Timer
                 if self.game_state.game_started and not self.game_state.game_over:
@@ -713,15 +723,16 @@ def main() -> None:
                 # FPS
                 self.fps_text.text = f"FPS: {self.fps:.1f}"
                 # Draw all HUD texts
-                for i, t in enumerate(self.hud_texts):
-                    outline_texts = self.hud_outline_texts[i] if i < len(self.hud_outline_texts) else None
-                    self._safe_draw_text(t, outline_texts)
+                if not self.hud_shader_ok:
+                    for i, t in enumerate(self.hud_texts):
+                        outline_texts = self.hud_outline_texts[i] if i < len(self.hud_outline_texts) else None
+                        self._safe_draw_text(t, outline_texts)
             # Draw transient event messages (similar to OpenCV OSD)
             now_t = time.time()
             if self.hud_shader_ok:
                 # Shader path: first render HUD-related texts into FBO using normal draw path (no outlines), then composite with outline shader
                 try:
-                    self.hud_fbo.clear(0,0,0,0)
+                    self.hud_fbo.clear(color=(0, 0, 0, 0))
                     with self.hud_fbo.activate():
                         # Draw base (head/hand messages + title + game over) without outlines
                         if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
@@ -754,11 +765,20 @@ def main() -> None:
                                 t.draw()
                     # Composite with outline shader: sample alpha neighborhood to create outline
                     tex = self.hud_fbo.color_attachments[0]
+                    # Switch back to default framebuffer for compositing
+                    try:
+                        self.ctx.screen.use()
+                    except Exception:
+                        pass
                     self.outline_program['u_tex'] = 0
                     self.outline_program['u_texel'] = (1.0/tex.width, 1.0/tex.height)
                     self.outline_program['u_outline_color'] = (0.0,0.0,0.0,1.0)
                     tex.use(0)
-                    self.fullscreen_quad.render(self.outline_program)
+                    # Render using VAO if available, otherwise geometry.render(program=...)
+                    try:
+                        self.fullscreen_vao.render()
+                    except Exception:
+                        self.fullscreen_vao.render(self.outline_program)
                 except Exception as e:
                     if not hasattr(self, '_shader_fail_reported'):
                         print(f"[WARN] HUD shader path failed, falling back: {e}")
