@@ -59,7 +59,7 @@
 | T5 | 静的タイトル/GO テクスチャ化 | T3 | ゲーム状態遷移で1描画 | タイトル/GO 中 avg -0.3ms |
 | T6 | 文字列テンプレート化 | T3 | format/f文字列削減 | micro 0.1–0.2ms 減 |
 | T7 | HUD FBO 合成検証 | T5 | 1 draw 化ベンチ成功 | draw_osd < 2.5ms 安定 |
-| T8 | Outline シェーダ試作 | T7 | 互換 fallback | シェーダ版 < 1.5ms |
+| T8 | Outline シェーダ試作 | T7 | 互換 fallback | シェーダ版 < 1.5ms (10s 計測: draw_osd ≈ 1.06 ms, frame ≈ 27.34 ms) |
 | T9 | hud_update / hud_draw 計測セクション | T1 | CSV に 2 列追加 | other 減少確証 |
 
 ## ロールバック戦略
