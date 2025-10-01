@@ -189,7 +189,7 @@ def main() -> None:
                     import array
                     self.ctx  # ensure context exists
                     vs = """#version 330\nin vec2 in_vert; out vec2 v_uv; void main(){ v_uv = in_vert*0.5+0.5; gl_Position = vec4(in_vert,0.0,1.0);}"""
-                    fs = """#version 330\nuniform sampler2D u_tex; uniform vec2 u_texel; uniform vec4 u_outline_color; in vec2 v_uv; out vec4 f_color; void main(){ vec4 base = texture(u_tex, v_uv); if(base.a>0.0){ f_color = base; return; } float a = 0.0; for(int dx=-1; dx<=1; ++dx){ for(int dy=-1; dy<=1; ++dy){ if(dx==0 && dy==0) continue; vec2 off = vec2(dx,dy)*u_texel; a = max(a, texture(u_tex, v_uv+off).a); }} if(a>0.0){ f_color = u_outline_color; } else { discard; } }"""
+                    fs = """#version 330\nuniform sampler2D u_tex;          \nuniform vec2 u_texel;             // 1 pixel in UV space (1/width, 1/height)\nuniform vec4 u_outline_color;     // outline color\nuniform float u_radius;           // blur radius in pixels\n\nin vec2 v_uv;\nout vec4 f_color;\n\nvoid main(){\n    vec4 base = texture(u_tex, v_uv);\n\n    // If base is opaque, draw the glyph as-is\n    if(base.a > 0.0){\n        f_color = base;\n        return;\n    }\n\n    // Soft outline by searching in multiple directions with distance falloff\n    float maxAlpha = 0.0;\n    int samples = 16; // more samples => smoother, but heavier\n\n    for(int i=0; i<samples; i++){\n        float angle = 6.2831853 * float(i) / float(samples); // 0..2pi\n        vec2 dir = vec2(cos(angle), sin(angle));\n        for(float r=1.0; r<=u_radius; r+=1.0){\n            vec2 offset = dir * r * u_texel;\n            float a = texture(u_tex, v_uv + offset).a;\n            if(a > 0.0){\n                maxAlpha = max(maxAlpha, 1.0 - (r / u_radius));\n                break; // nearest hit in this direction is enough\n            }\n        }\n    }\n\n    if(maxAlpha > 0.0){\n        f_color = vec4(u_outline_color.rgb, u_outline_color.a * maxAlpha);\n    } else {\n        discard;\n    }\n}\n"""
                     self.outline_program = self.ctx.program(vertex_shader=vs, fragment_shader=fs)
                     # Create a color texture and attach to FBO (Arcade GL API)
                     color_tex = self.ctx.texture((WIDTH, HEIGHT), components=4)
@@ -773,6 +773,7 @@ def main() -> None:
                     self.outline_program['u_tex'] = 0
                     self.outline_program['u_texel'] = (1.0/tex.width, 1.0/tex.height)
                     self.outline_program['u_outline_color'] = (0.0,0.0,0.0,1.0)
+                    self.outline_program['u_radius'] = 2.0
                     tex.use(0)
                     # Render using VAO if available, otherwise geometry.render(program=...)
                     try:
