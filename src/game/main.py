@@ -405,7 +405,7 @@ def main() -> None:
                                 # Mark the rock as hit only when damage is taken
                                 rk.hit = True
                                 rk.hit_time = time.time()
-                                head_hits_display.append("ライフ　-1！")
+                                # head message disabled (visual feedback via FX only)
                                 self.audio_mgr.play_head_hit()
                                 # Spawn red, downward-moving effect at the collision point
                                 px, py = pos
@@ -420,12 +420,8 @@ def main() -> None:
                                 )
                             else:
                                 # Invulnerable: no effect and rock remains
-                                head_hits_display.append("無敵中")
-                if head_hits_display:
-                    # Show head message for a short duration
-                    # Match OpenCV messages
-                    self.head_msg_text.text = ", ".join(head_hits_display)
-                    self._head_msg_until = time.time() + 1.5
+                                pass  # head invulnerable message disabled
+                # Head message disabled (visual feedback via FX only)
                 # Hands collisions
                 hand_circles = []
                 for circles in players:
@@ -435,9 +431,7 @@ def main() -> None:
                 hand_hits = hand_events.get("hits", 0)
                 if hand_hits > 0:
                     self.audio_mgr.play_hand_hit()
-                    # Show hand message briefly
-                    self.hand_msg_text.text = f"手ヒット　x{hand_hits}"
-                    self._hand_msg_until = time.time() + 1.0
+                    # Hand message disabled (visual feedback via FX only)
                     for (px, py) in hand_events.get("positions", []):
                         self.effects.spawn_explosion(
                             px, py,
