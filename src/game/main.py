@@ -412,10 +412,11 @@ def main() -> None:
                                 self.effects.spawn_explosion(
                                     px, py,
                                     base_color=(0, 0, 255),  # BGR red
-                                    count=64,
+                                    count=128,  # doubled from 64
                                     life_min=0.5, life_max=1.0,
                                     gravity_min=80.0, gravity_max=180.0,
-                                    end_color=(40, 40, 40)
+                                    end_color=(40, 40, 40),
+                                    size_min=3.0, size_max=9.0  # 1.5x size (was 2.0-6.0)
                                 )
                             else:
                                 # Invulnerable: no effect and rock remains
