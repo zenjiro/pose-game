@@ -263,11 +263,7 @@ def main() -> None:
             self.prof = get_profiler()
             # Pre-allocate Text objects to avoid per-frame draw_text cost
             self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 38, arcade.color.WHITE, 14, font_name=self.arcade_font_name)
-            # Event messages (head hits / hand hits)
-            self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32, font_name=self.arcade_font_name)
-            # Create outline texts for event messages (not for FPS as it changes frequently)
-            self.hand_msg_outline_texts = [] if self.hud_shader_ok else self._create_outline_texts(self.hand_msg_text)
-            self._hand_msg_until = 0.0
+            # Event messages are disabled (FX and sounds only)
             # Title screen texts (lazy initialized)
             self._title_texts = None
             self._title_outline_texts = None
@@ -275,8 +271,7 @@ def main() -> None:
             self._text_ok = True
             # On Windows, prefer PIL-based text overlay to avoid pyglet DirectWrite issues
             self.use_pil_text = sys.platform.startswith('win')
-            # Buffers for transient JP messages when using PIL overlay
-            self._hand_msg_str = ""
+            # No transient JP messages used for event HUD
             
             # Initialize optimized rendering components (now the only option)
             from .render import RockSpriteList, CircleGeometry
@@ -744,9 +739,7 @@ def main() -> None:
                 try:
                     self.hud_fbo.clear(color=(0, 0, 0, 0))
                     with self.hud_fbo.activate():
-                        # Draw base (hand messages + title + game over) without outlines
-                        if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
-                            self.hand_msg_text.draw()
+                        # Draw base (title + game over) without outlines
                         if not self.game_state.game_started and self._title_texts is not None:
                             for t in self._title_texts:
                                 t.draw()
@@ -794,8 +787,7 @@ def main() -> None:
                         self._shader_fail_reported = True
                     self.hud_shader_ok = False
             else:
-                if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
-                    self._safe_draw_text(self.hand_msg_text, self.hand_msg_outline_texts)
+                # No hand message HUD to draw
                 if not self.game_state.game_started and self._title_texts is not None:
                     for i, t in enumerate(self._title_texts):
                         outline_texts = self._title_outline_texts[i] if i < len(self._title_outline_texts) else None
