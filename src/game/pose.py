@@ -251,6 +251,8 @@ class PoseEstimator:
         # Hands: adjust position to the center of the bbox covering WRIST/THUMB/INDEX/PINKY
         hands: List[Circle] = []
         hand_r = max(6, int(h * 0.025))
+        # Enlarge hands collision/visual radius by 1.5x (diameter x1.5)
+        hand_r = int(hand_r * 1.5)
 
         def bbox_center(points: List[Tuple[int, int, float]]) -> Tuple[int, int]:
             xs = [p[0] for p in points]
@@ -290,6 +292,8 @@ class PoseEstimator:
         la = get_xy(LEFT_ANKLE, 0.4)
         ra = get_xy(RIGHT_ANKLE, 0.4)
         foot_r = max(8, int(h * 0.03))
+        # Enlarge feet collision/visual radius by 1.5x (diameter x1.5)
+        foot_r = int(foot_r * 1.5)
         if lfi:
             feet.append(Circle(lfi[0], lfi[1], foot_r))
         elif la:
