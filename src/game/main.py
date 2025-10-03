@@ -442,11 +442,12 @@ def main() -> None:
                         self.effects.spawn_explosion(
                             px, py,
                             base_color=(255, 160, 100),
-                            count=60,
+                            count=120,  # doubled from 60
                             life_min=0.5 * (2.0/3.0),
                             life_max=1.0 * (2.0/3.0),
                             gravity_min=60.0, gravity_max=140.0,
-                            end_color=(90, 110, 130)
+                            end_color=(90, 110, 130),
+                            size_min=3.0, size_max=9.0  # 1.5x size (was 2.0-6.0)
                         )
                 # Feet collisions by player
                 for i in range(2):
@@ -459,7 +460,12 @@ def main() -> None:
                             self.game_state.handle_foot_hit(i, hits)
                             self.audio_mgr.play_foot_hit()
                             for (px, py) in events.get("positions", []):
-                                self.effects.spawn_explosion(px, py, base_color=(50, 180, 255), count=112)
+                                self.effects.spawn_explosion(
+                                    px, py,
+                                    base_color=(50, 180, 255),
+                                    count=224,  # doubled from 112
+                                    size_min=3.0, size_max=9.0  # 1.5x size (was 2.0-6.0)
+                                )
             # Update managers
             self.rock_mgr.update(max(0.0, min(dt, 0.05)))
             self.effects.update(max(0.0, min(dt, 0.05)))
