@@ -381,7 +381,7 @@ def main() -> None:
             if self.game_state.game_started:
                 self.game_state.update()
                 remaining_time = self.game_state.get_remaining_time()
-                if remaining_time <= 10 and remaining_time > 0:
+                if (remaining_time <= 10) and (remaining_time > 0) and (not self.game_state.game_over):
                     self.audio_mgr.play_hurry_alarm()
                 # Head collisions per player
                 for i in range(2):
@@ -706,12 +706,9 @@ def main() -> None:
                             []  # Empty for FPS text
                         ]
                 # Update dynamic texts
-                # Timer
-                if self.game_state.game_started and not self.game_state.game_over:
-                    remaining_time = self.game_state.get_remaining_time()
-                    display_time = int(max(0, math.ceil(remaining_time)))
-                else:
-                    display_time = int(self.game_state.time_limit)
+                # Timer: always read from GameState for consistency (uses game_over_time when over)
+                remaining_time = self.game_state.get_remaining_time()
+                display_time = int(max(0, math.ceil(remaining_time)))
                 minutes = display_time // 60
                 seconds = display_time % 60
                 self.timer_text.text = f"{minutes}:{seconds:02d}"
