@@ -15,8 +15,8 @@ class RockManager:
         self.rocks: List[Rock] = []
         self._last_spawn = time.time()
         self.spawn_interval = 0.5  # seconds (tune)
-        self.min_radius = 14
-        self.max_radius = 36
+        self.min_radius = 20
+        self.max_radius = 40
         self.speed_min = 150.0
         self.speed_max = 250.0
         self.audio_manager = audio_manager

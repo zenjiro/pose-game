@@ -118,6 +118,29 @@ uv の詳細は https://docs.astral.sh/uv/ を参照してください。
 
 ---
 
+## パラメーター調整
+
+現時点ではゲーム内パラメーターはコード内の定数で管理しています。主な調整箇所は以下です。
+
+- 岩の生成と速度: src/game/gameplay.py
+  - 生成間隔: RockManager.spawn_interval
+    - 例: 0.5 秒ごとに生成: spawn_interval = 0.5
+  - 垂直速度の範囲: RockManager.speed_min / RockManager.speed_max
+    - 例: 150〜250: speed_min = 150.0, speed_max = 250.0
+  - 水平速度の範囲: gameplay.py の maybe_spawn() 内の vx の一様乱数
+    - 例: -50〜50: vx = random.uniform(-50.0, 50.0)
+  - 岩の半径（サイズ）: RockManager.min_radius / RockManager.max_radius
+    - 例: 20〜40: min_radius = 20, max_radius = 40
+
+- その他（参考）
+  - カメラ入力や描画に関する調整は src/game/main.py と src/game/render.py を参照
+  - 姿勢推定のリサイズは --infer-size で指定可能
+  - カメラのキャプチャ解像度は --capture-width / --capture-height で指定可能
+
+将来的に config.py に集約し、CLI からの上書きや外部設定ファイルに対応する拡張も可能です。ご希望があれば対応します。
+
+---
+
 ## プロファイリング (計測)
 - 実行時間の計測は `--profile-csv` オプションで有効化します。
 - `--profile` と `--profile-osd` は廃止されました。CSV 指定のみでプロファイラが起動します。
