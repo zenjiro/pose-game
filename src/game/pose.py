@@ -147,14 +147,6 @@ class PoseEstimator:
         # Use logger to report backend at debug level
         # determine backend for internal use
 
-        # Throttle debug logging to every 3 seconds
-        current_time = time.time()
-        should_log = not hasattr(self, '_last_debug_time') or (current_time - getattr(self, '_last_debug_time', 0)) >= 3.0
-        
-        if should_log:
-            self._last_debug_time = current_time
-            print(f"[DEBUG] PoseEstimator.process: backend={getattr(self, '_backend', None)} frame={w}x{h}")
-        
         if self._multi is not None:
             # Guard attribute access to satisfy static analyzers that may not
             # see `Image` and `ImageFormat` on the tasks vision module.
@@ -166,8 +158,6 @@ class PoseEstimator:
                 ImageFormat = getattr(mp, "ImageFormat", None)
 
             if Image is None or ImageFormat is None:
-                if should_log:
-                    print("[DEBUG] PoseEstimator: mp.Image or mp_vision.Image/ImageFormat unavailable; cannot use Tasks API for this frame")
                 return []
 
             img_fmt = getattr(ImageFormat, "SRGB", None)
@@ -175,8 +165,6 @@ class PoseEstimator:
             # VIDEO mode requires a timestamp in milliseconds
             res = self._multi.detect_for_video(mp_image, int(time.time() * 1000))
             num = len(res.pose_landmarks) if res.pose_landmarks else 0
-            if should_log:
-                print(f"[DEBUG] Tasks API returned {num} pose sets")
             if not res.pose_landmarks:
                 return []
             # res.pose_landmarks is list[list[NormalizedLandmark]] per person
@@ -190,12 +178,8 @@ class PoseEstimator:
         # Fallback to single-person solutions API
         results = self._single.process(rgb) if self._single is not None else None
         if not results or not results.pose_landmarks:
-            if should_log:
-                print("[DEBUG] Solutions API returned no pose_landmarks")
             return []
         lm_count = len(results.pose_landmarks.landmark) if results.pose_landmarks and results.pose_landmarks.landmark else 0
-        if should_log:
-            print(f"[DEBUG] Solutions API returned landmarks count={lm_count}")
         person = self._extract_person(results.pose_landmarks.landmark, w, h)
         people.append(person)
         if not getattr(self, "_debug_printed", False):
