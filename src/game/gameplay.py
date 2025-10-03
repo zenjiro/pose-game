@@ -14,11 +14,11 @@ class RockManager:
         self.height = height
         self.rocks: List[Rock] = []
         self._last_spawn = time.time()
-        self.spawn_interval = 0.8  # seconds (tune)
+        self.spawn_interval = 0.5  # seconds (tune)
         self.min_radius = 14
         self.max_radius = 36
-        self.speed_min = 180.0
-        self.speed_max = 360.0
+        self.speed_min = 150.0
+        self.speed_max = 250.0
         self.audio_manager = audio_manager
 
     def find_first_collision(self, circles: List[Tuple[int, int, int]]) -> tuple[Rock | None, tuple[float, float] | None]:
@@ -42,7 +42,7 @@ class RockManager:
         r = random.randint(self.min_radius, self.max_radius)
         x = random.uniform(r, self.width - r)
         y = -r
-        vx = random.uniform(-60.0, 60.0)
+        vx = random.uniform(-50.0, 50.0)
         vy = random.uniform(self.speed_min, self.speed_max)
         color = (80, 80, 80)
         self.rocks.append(Rock(x=x, y=y, vx=vx, vy=vy, r=r, color=color))
