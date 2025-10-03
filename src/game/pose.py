@@ -221,6 +221,12 @@ class PoseEstimator:
         RIGHT_EAR = 8
         LEFT_WRIST = 15
         RIGHT_WRIST = 16
+        LEFT_PINKY = 17
+        RIGHT_PINKY = 18
+        LEFT_INDEX = 19
+        RIGHT_INDEX = 20
+        LEFT_THUMB = 21
+        RIGHT_THUMB = 22
         LEFT_ANKLE = 27
         RIGHT_ANKLE = 28
         LEFT_FOOT_INDEX = 31
@@ -242,15 +248,40 @@ class PoseEstimator:
             r = max(12, int(h * 0.06))
             head.append(Circle(nose[0], nose[1], r))
 
-        # Hands
+        # Hands: adjust position to the center of the bbox covering WRIST/THUMB/INDEX/PINKY
         hands: List[Circle] = []
-        lw = get_xy(LEFT_WRIST, 0.4)
-        rw = get_xy(RIGHT_WRIST, 0.4)
         hand_r = max(6, int(h * 0.025))
-        if lw:
-            hands.append(Circle(lw[0], lw[1], hand_r))
-        if rw:
-            hands.append(Circle(rw[0], rw[1], hand_r))
+
+        def bbox_center(points: List[Tuple[int, int, float]]) -> Tuple[int, int]:
+            xs = [p[0] for p in points]
+            ys = [p[1] for p in points]
+            cx = int((min(xs) + max(xs)) * 0.5)
+            cy = int((min(ys) + max(ys)) * 0.5)
+            return cx, cy
+
+        # Left hand points (use available ones with visibility >= 0.4)
+        left_pts_raw = [
+            get_xy(LEFT_WRIST, 0.4),
+            get_xy(LEFT_THUMB, 0.4),
+            get_xy(LEFT_INDEX, 0.4),
+            get_xy(LEFT_PINKY, 0.4),
+        ]
+        left_pts = [p for p in left_pts_raw if p]
+        if left_pts:
+            lcx, lcy = bbox_center(left_pts)
+            hands.append(Circle(lcx, lcy, hand_r))
+
+        # Right hand points
+        right_pts_raw = [
+            get_xy(RIGHT_WRIST, 0.4),
+            get_xy(RIGHT_THUMB, 0.4),
+            get_xy(RIGHT_INDEX, 0.4),
+            get_xy(RIGHT_PINKY, 0.4),
+        ]
+        right_pts = [p for p in right_pts_raw if p]
+        if right_pts:
+            rcx, rcy = bbox_center(right_pts)
+            hands.append(Circle(rcx, rcy, hand_r))
 
         # Feet (prefer foot_index; fallback to ankle)
         feet: List[Circle] = []
