@@ -129,14 +129,6 @@ class RockSpriteList:
     def draw(self):
         """Draw all rock sprites efficiently."""
         self.sprite_list.draw()
-        
-        # Draw hit effects separately (could be optimized further)
-        for sprite in self.sprite_list:
-            if getattr(sprite.rock, "hit", False):
-                arcade.draw_circle_outline(
-                    sprite.center_x, sprite.center_y, 
-                    sprite.rock.r + 4, (200, 0, 0), border_width=3
-                )
 
 
 # Geometry-based circle drawing for pose circles
