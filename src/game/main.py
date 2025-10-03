@@ -398,13 +398,27 @@ def main() -> None:
                     circles = players[i]
                     head_circles = [(c.x, c.y, c.r) for c in circles.get("head", [])]
                     if head_circles:
-                        hits = self.rock_mgr.handle_head_collisions(head_circles)
-                        if hits > 0:
+                        rk, pos = self.rock_mgr.find_first_collision(head_circles)
+                        if rk is not None and pos is not None:
                             damage_taken = self.game_state.handle_head_hit(i)
                             if damage_taken:
+                                # Mark the rock as hit only when damage is taken
+                                rk.hit = True
+                                rk.hit_time = time.time()
                                 head_hits_display.append("ライフ　-1！")
                                 self.audio_mgr.play_head_hit()
+                                # Spawn red, downward-moving effect at the collision point
+                                px, py = pos
+                                self.effects.spawn_explosion(
+                                    px, py,
+                                    base_color=(0, 0, 255),  # BGR red
+                                    count=64,
+                                    life_min=0.5, life_max=1.0,
+                                    gravity_min=80.0, gravity_max=180.0,
+                                    end_color=(40, 40, 40)
+                                )
                             else:
+                                # Invulnerable: no effect and rock remains
                                 head_hits_display.append("無敵中")
                 if head_hits_display:
                     # Show head message for a short duration

@@ -21,6 +21,18 @@ class RockManager:
         self.speed_max = 360.0
         self.audio_manager = audio_manager
 
+    def find_first_collision(self, circles: List[Tuple[int, int, int]]) -> tuple[Rock | None, tuple[float, float] | None]:
+        """Return the first unhit rock colliding with any of the given circles without mutating state.
+        Returns (rock, (x,y)) or (None, None) if none.
+        """
+        for rk in self.rocks:
+            if rk.hit:
+                continue
+            for cx, cy, cr in circles:
+                if circles_overlap((rk.x, rk.y, rk.r), (cx, cy, cr)):
+                    return rk, (rk.x, rk.y)
+        return None, None
+
     def maybe_spawn(self) -> None:
         now = time.time()
         if now - self._last_spawn < self.spawn_interval:
