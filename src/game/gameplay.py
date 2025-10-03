@@ -14,7 +14,7 @@ class RockManager:
         self.height = height
         self.rocks: List[Rock] = []
         self._last_spawn = time.time()
-        self.spawn_interval = 0.5  # seconds (tune)
+        self.spawn_interval = 1.0  # seconds (tune)
         self.min_radius = 20
         self.max_radius = 40
         self.speed_min = 150.0
