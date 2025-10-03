@@ -35,8 +35,10 @@ Notes about behavior and current implementation
   - You can specify the initial camera with -c/--camera (e.g., -c 1). This does not change runtime cycling behavior.
   - Press C at any time to cycle to the next camera index; the app releases the current capture and tries the next. If opening fails, it stays on the current camera.
 - Pose detection: PoseEstimator will try to use MediaPipe Tasks API (PoseLandmarker) when max_people>1 and Tasks is available; otherwise it uses the single-person Solutions API. It returns structured circle groups for drawing and collision checks.
-- Game objects: Rocks are spawned by RockManager with tunable parameters (spawn interval, speed, radius) and updated each frame.
-- Rendering: Arcade is the default backend. draw_circles_arcade()/draw_rocks_arcade() are used for GPU rendering. Legacy OpenCV window rendering has been removed; OpenCV image ops are still used for camera and preprocessing.
+- Game objects: Rocks are spawned by RockManager with tunable parameters and updated each frame.
+  - Defaults: spawn_interval=0.5s, vertical speed=150–250 px/s, horizontal speed=-50..50 px/s, radius=20–40 px
+  - Tuning: see README "パラメーター調整" section for where to change values in code.
+- Rendering: Arcade is the default backend. Uses optimized geometry for pose circles and SpriteList for rocks. HUD outline text uses a shader + FBO composite by default (auto-fallback to plain text if shader init fails). Legacy OpenCV window rendering has been removed; OpenCV image ops are still used for camera and preprocessing.
 - Audio: AudioManager (arcade) plays UI/gameplay sounds (start, hits, countdown, game over, rock drop).
 
 Coding conventions and expectations for agents
@@ -49,7 +51,7 @@ Recommended tasks for a coding agent (examples)
   - Add/adjust collision.py or logic in gameplay.py for rock vs head/hands/feet.
   - Update RockManager or GameState to handle scores, lives, and game states (TITLE/PLAYING/GAME_OVER).
   - Add unit tests for collision math (circle-circle overlap) and score/life updates.
-- Add config/constants module (config.py) to centralize tunable parameters (spawn rates, radii scale, initial lives, game duration).
+- Add config/constants module (config.py) to centralize tunable parameters (spawn rates, speeds, radii, initial lives, game duration) and optionally wire to CLI.
 - Improve robustness around camera probing on non-Windows systems (devices.py currently implements Windows-only helpers).
 - Add a lightweight CLI or uv script entry in pyproject.toml if desired.
 
