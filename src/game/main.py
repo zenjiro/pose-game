@@ -264,12 +264,9 @@ def main() -> None:
             # Pre-allocate Text objects to avoid per-frame draw_text cost
             self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 38, arcade.color.WHITE, 14, font_name=self.arcade_font_name)
             # Event messages (head hits / hand hits)
-            self.head_msg_text = arcade.Text("", 60, HEIGHT - 110, (230, 20, 20), 32, font_name=self.arcade_font_name)
             self.hand_msg_text = arcade.Text("", 60, HEIGHT - 140, (20, 180, 20), 32, font_name=self.arcade_font_name)
             # Create outline texts for event messages (not for FPS as it changes frequently)
-            self.head_msg_outline_texts = [] if self.hud_shader_ok else self._create_outline_texts(self.head_msg_text)
             self.hand_msg_outline_texts = [] if self.hud_shader_ok else self._create_outline_texts(self.hand_msg_text)
-            self._head_msg_until = 0.0
             self._hand_msg_until = 0.0
             # Title screen texts (lazy initialized)
             self._title_texts = None
@@ -279,7 +276,6 @@ def main() -> None:
             # On Windows, prefer PIL-based text overlay to avoid pyglet DirectWrite issues
             self.use_pil_text = sys.platform.startswith('win')
             # Buffers for transient JP messages when using PIL overlay
-            self._head_msg_str = ""
             self._hand_msg_str = ""
             
             # Initialize optimized rendering components (now the only option)
@@ -393,7 +389,6 @@ def main() -> None:
                 if remaining_time <= 10 and remaining_time > 0:
                     self.audio_mgr.play_hurry_alarm()
                 # Head collisions per player
-                head_hits_display = []
                 for i in range(2):
                     circles = players[i]
                     head_circles = [(c.x, c.y, c.r) for c in circles.get("head", [])]
@@ -749,9 +744,7 @@ def main() -> None:
                 try:
                     self.hud_fbo.clear(color=(0, 0, 0, 0))
                     with self.hud_fbo.activate():
-                        # Draw base (head/hand messages + title + game over) without outlines
-                        if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
-                            self.head_msg_text.draw()
+                        # Draw base (hand messages + title + game over) without outlines
                         if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
                             self.hand_msg_text.draw()
                         if not self.game_state.game_started and self._title_texts is not None:
@@ -801,8 +794,6 @@ def main() -> None:
                         self._shader_fail_reported = True
                     self.hud_shader_ok = False
             else:
-                if now_t < getattr(self, '_head_msg_until', 0.0) and self.head_msg_text.text:
-                    self._safe_draw_text(self.head_msg_text, self.head_msg_outline_texts)
                 if now_t < getattr(self, '_hand_msg_until', 0.0) and self.hand_msg_text.text:
                     self._safe_draw_text(self.hand_msg_text, self.hand_msg_outline_texts)
                 if not self.game_state.game_started and self._title_texts is not None:
