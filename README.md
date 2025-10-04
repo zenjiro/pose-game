@@ -54,19 +54,7 @@ uv run python -m game.main
 - 依存に `pillow` を追加済みなので、環境にインストールされます。
 - OS に含まれる日本語フォント、または任意のフォントファイル（.ttf/.ttc/.otf）を指定してください。
 
-使用例:
-```
-# Windows の例（Meiryo）
-uv run python -m game.main --jp-font "C:\\Windows\\Fonts\\meiryo.ttc"
-
-# macOS の例（ヒラギノ角ゴ）
-uv run python -m game.main --jp-font "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc"
-
-# Linux の例（Noto CJK）
-uv run python -m game.main --jp-font "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"
-```
-
-- `--jp-font` を指定しない場合は OS のデフォルトフォントを使って日本語表示します。
+注: 日本語フォントは OS から自動的に選択・使用されます。
 
 uv の詳細は https://docs.astral.sh/uv/ を参照してください。
 
@@ -76,8 +64,6 @@ uv の詳細は https://docs.astral.sh/uv/ を参照してください。
 - 起動時にカメラ選択ダイアログは表示しません。
 - 起動時に利用可能なカメラを自動検出し、最初のカメラを開きます。
 - 検出に失敗した場合はインデックス 0 を試みます。
-- コマンドライン引数で初期カメラを指定できます（仕様は変更していません）。
-  - 例: `uv run python -m game.main -c 1`
 - 実行中に `C` キーで次のカメラへ順送りに切り替えできます（失敗した場合は現在のカメラを維持）。
 
 ---
@@ -134,7 +120,6 @@ uv の詳細は https://docs.astral.sh/uv/ を参照してください。
 
 - その他（参考）
   - カメラ入力や描画に関する調整は src/game/main.py と src/game/render.py を参照
-  - 姿勢推定のリサイズは --infer-size で指定可能
   - カメラのキャプチャ解像度は --capture-width / --capture-height で指定可能
 
 将来的に config.py に集約し、CLI からの上書きや外部設定ファイルに対応する拡張も可能です。ご希望があれば対応します。

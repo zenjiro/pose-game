@@ -61,14 +61,11 @@ def find_default_jp_font() -> str | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--camera", type=int, help="Camera index to open")
     parser.add_argument("--tasks-model", type=str, default="models/pose_landmarker_lite.task", help="Optional path to MediaPipe Tasks pose landmarker model file for multi-person detection")
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
     # If not provided, we try to auto-detect a Japanese-capable font per OS
-    parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese")
     parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV (enables profiler)")
     parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
-    parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
     parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
     
@@ -88,13 +85,7 @@ def main() -> None:
         camera_indices = [0]
 
     # Determine initial camera index
-    if args.camera is not None:
-        start_idx = int(args.camera)
-        # Ensure the specified index participates in cycling order
-        if start_idx not in camera_indices:
-            camera_indices = [start_idx] + [i for i in camera_indices if i != start_idx]
-    else:
-        start_idx = camera_indices[0]
+    start_idx = camera_indices[0]
 
     # Track current position in the cycle list
     try:
@@ -151,7 +142,7 @@ def main() -> None:
     cap_stop_event = threading.Event()
     infer_stop_event = threading.Event()
     cam_thread = CameraCaptureThread(cap, latest_frame, cap_stop_event)
-    infer_thread = PoseInferThread(pose, latest_frame, latest_pose, infer_stop_event, infer_size=args.infer_size, duplicate=args.duplicate)
+    infer_thread = PoseInferThread(pose, latest_frame, latest_pose, infer_stop_event, infer_size=None, duplicate=args.duplicate)
     cam_thread.start()
     infer_thread.start()
 

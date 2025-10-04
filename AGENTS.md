@@ -27,12 +27,10 @@ How to run (developer machine)
    - uv add opencv-python mediapipe numpy
 4. Run the game:
    - uv run python -m game.main
-   - optionally pass a Japanese font via --jp-font <path> for JP text rendering
 
 Notes about behavior and current implementation
 - Camera handling:
   - On startup, the app probes available cameras via list_available_cameras(). If none are detected, it falls back to index 0.
-  - You can specify the initial camera with -c/--camera (e.g., -c 1). This does not change runtime cycling behavior.
   - Press C at any time to cycle to the next camera index; the app releases the current capture and tries the next. If opening fails, it stays on the current camera.
 - Pose detection: PoseEstimator will try to use MediaPipe Tasks API (PoseLandmarker) when max_people>1 and Tasks is available; otherwise it uses the single-person Solutions API. It returns structured circle groups for drawing and collision checks.
 - Game objects: Rocks are spawned by RockManager with tunable parameters and updated each frame.

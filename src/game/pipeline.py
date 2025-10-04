@@ -90,7 +90,7 @@ class CameraCaptureThread(threading.Thread):
 class PoseInferThread(threading.Thread):
     """Consumes the latest frames, runs pose inference, and publishes latest results.
 
-    - Supports optional duplicate mode and inference downscale (--infer-size)
+    - Supports optional duplicate mode and internal inference downscale
     - Results are scaled back to the working frame size (after duplication when enabled).
     """
 
