@@ -176,6 +176,9 @@ def main() -> None:
             self.game_state = game_state
             self.effects = effects
             self.args = args
+            # OSD highlight state (per-field highlight until timestamp)
+            self._hl_until = {"p1_score": 0.0, "p1_lives": 0.0, "p2_score": 0.0, "p2_lives": 0.0}
+            self._last_vals = {"p1_score": None, "p1_lives": None, "p2_score": None, "p2_lives": None}
             # Shader-based HUD outline (T8) initialization
             self.hud_shader_ok = False
             if True:
@@ -604,11 +607,30 @@ def main() -> None:
                 p2 = self.game_state.get_player(1)
                 self.p1_score_text.text = f"スコア:　{p1.score}"
                 self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"ライフ:　{p1.lives}"
-                # Match OpenCV coloring: green normally, red when low lives (<=1), invulnerable, or game over
-                self.p1_lives_text.color = COLORS.OSD_P1_LIVES
-                self.p2_score_text.text = f"スコア:　{p2.score}"
-                self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"ライフ:　{p2.lives}"
-                self.p2_lives_text.color = COLORS.OSD_P2_LIVES
+
+                # Detect changes and set 1s highlight timers
+                _now = time.time()
+                if (self._last_vals["p1_score"] is not None) and (self._last_vals["p1_score"] != p1.score):
+                    self._hl_until["p1_score"] = _now + 1.0
+                if (self._last_vals["p1_lives"] is not None) and (self._last_vals["p1_lives"] != p1.lives):
+                    self._hl_until["p1_lives"] = _now + 1.0
+                if (self._last_vals["p2_score"] is not None) and (self._last_vals["p2_score"] != p2.score):
+                    self._hl_until["p2_score"] = _now + 1.0
+                if (self._last_vals["p2_lives"] is not None) and (self._last_vals["p2_lives"] != p2.lives):
+                    self._hl_until["p2_lives"] = _now + 1.0
+                self._last_vals.update({
+                    "p1_score": p1.score,
+                    "p1_lives": p1.lives,
+                    "p2_score": p2.score,
+                    "p2_lives": p2.lives,
+                })
+
+                # Apply colors with transient highlight
+                self.p1_score_text.color = (COLORS.OSD_HIGHLIGHT if _now < self._hl_until["p1_score"] else COLORS.OSD_P1_SCORE)
+                self.p1_lives_text.color = (COLORS.OSD_HIGHLIGHT if _now < self._hl_until["p1_lives"] else COLORS.OSD_P1_LIVES)
+                self.p2_score_text.color = (COLORS.OSD_HIGHLIGHT if _now < self._hl_until["p2_score"] else COLORS.OSD_P2_SCORE)
+                self.p2_lives_text.color = (COLORS.OSD_HIGHLIGHT if _now < self._hl_until["p2_lives"] else COLORS.OSD_P2_LIVES)
+
                 # FPS
                 self.fps_text.text = f"FPS: {self.fps:.1f}"
                 # Draw all HUD texts

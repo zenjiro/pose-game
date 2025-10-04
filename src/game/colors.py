@@ -8,6 +8,7 @@ TANGO_GREEN  = (115, 210, 22)  # #73d216
 # Semantic aliases for UI/OSD elements
 OSD_TITLE     = TANGO_YELLOW
 OSD_HINT      = TANGO_GREEN
+OSD_HIGHLIGHT = TANGO_YELLOW  # used for transient highlights (score/life change)
 OSD_P1_SCORE  = TANGO_RED
 OSD_P2_SCORE  = TANGO_BLUE
 OSD_P1_LIVES  = TANGO_RED
