@@ -581,11 +581,11 @@ def main() -> None:
                     # Timer centered at top
                     self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 46, arcade.color.WHITE, 36, anchor_x="center", font_name=self.arcade_font_name)
                     # P1 left
-                    self.p1_score_text = arcade.Text("スコア:　0", margin, HEIGHT - 70, COLORS.OSD_P1_SCORE, 28, font_name=self.arcade_font_name)
-                    self.p1_lives_text = arcade.Text("ライフ:　5", margin, HEIGHT - 100, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
+                    self.p1_score_text = arcade.Text("スコア：0", margin, HEIGHT - 70, COLORS.OSD_P1_SCORE, 28, font_name=self.arcade_font_name)
+                    self.p1_lives_text = arcade.Text("ライフ：5", margin, HEIGHT - 100, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
                     # P2 right (right-aligned)
-                    self.p2_score_text = arcade.Text("スコア:　0", WIDTH - margin, HEIGHT - 70, COLORS.OSD_P2_SCORE, 28, anchor_x="right", font_name=self.arcade_font_name)
-                    self.p2_lives_text = arcade.Text("ライフ:　5", WIDTH - margin, HEIGHT - 100, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
+                    self.p2_score_text = arcade.Text("スコア：0", WIDTH - margin, HEIGHT - 70, COLORS.OSD_P2_SCORE, 28, anchor_x="right", font_name=self.arcade_font_name)
+                    self.p2_lives_text = arcade.Text("ライフ：5", WIDTH - margin, HEIGHT - 100, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
                     # FPS at top-left below timer
                     self.fps_text = arcade.Text("FPS：0.0", margin, HEIGHT - 38, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
                     self.hud_texts = [
