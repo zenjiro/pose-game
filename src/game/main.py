@@ -68,6 +68,7 @@ def main() -> None:
     parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
     parser.add_argument("--capture-width", type=int, default=None, help="Override camera capture width (default 1280)")
     parser.add_argument("--capture-height", type=int, default=None, help="Override camera capture height (default 720)")
+    parser.add_argument("--show-pose", action="store_true", help="Draw pose circles (head/hands/feet)")
     
     args = parser.parse_args()
 
@@ -553,13 +554,14 @@ def main() -> None:
                     with self.prof.section("draw_camera"):
                         self.pg_image.blit(0, 0, width=WIDTH, height=HEIGHT)
             # Draw pose circles using optimized geometry-based rendering
-            from .render import draw_circles_arcade_optimized
-            try:
-                with self.prof.section("draw_pose"):
-                    draw_circles_arcade_optimized(self.players[0], HEIGHT, color=(0, 0, 255), geometry_renderer=self.circle_geometry)
-                    draw_circles_arcade_optimized(self.players[1], HEIGHT, color=(255, 0, 0), geometry_renderer=self.circle_geometry)
-            except Exception:
-                pass
+            if getattr(self.args, "show_pose", False):
+                from .render import draw_circles_arcade_optimized
+                try:
+                    with self.prof.section("draw_pose"):
+                        draw_circles_arcade_optimized(self.players[0], HEIGHT, color=(0, 0, 255), geometry_renderer=self.circle_geometry)
+                        draw_circles_arcade_optimized(self.players[1], HEIGHT, color=(255, 0, 0), geometry_renderer=self.circle_geometry)
+                except Exception:
+                    pass
             # Draw rocks using SpriteList-based rendering
             with self.prof.section("draw_rocks"):
                 self.rock_sprite_list.update_rocks(self.rock_mgr.rocks)
