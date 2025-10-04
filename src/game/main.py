@@ -341,6 +341,7 @@ def main() -> None:
                     if hold_elapsed >= 2.0:
                         self.game_state.reset()
                         self.rock_mgr.reset()
+                        self.audio_mgr.play_game_start()
                         gesture_hold_start = None
                 else:
                     gesture_hold_start = None
