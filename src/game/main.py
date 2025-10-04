@@ -605,10 +605,10 @@ def main() -> None:
                 # Scores/Lives
                 p1 = self.game_state.get_player(0)
                 p2 = self.game_state.get_player(1)
-                self.p1_score_text.text = f"スコア:　{p1.score}"
-                self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"ライフ:　{p1.lives}"
-                self.p2_score_text.text = f"スコア:　{p2.score}"
-                self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"ライフ:　{p2.lives}"
+                self.p1_score_text.text = f"スコア：{p1.score}"
+                self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"ライフ：{p1.lives}"
+                self.p2_score_text.text = f"スコア：{p2.score}"
+                self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"ライフ：{p2.lives}"
 
                 # Detect changes and set 1s highlight timers
                 _now = time.time()
