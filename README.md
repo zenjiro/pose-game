@@ -49,6 +49,13 @@ uv run python -m game.main
 # --arcade は不要です（Arcade がデフォルト）。OpenCV ウィンドウ版は廃止されました。
 ```
 
+### ポーズ円の表示（任意）
+- デフォルトでは頭・手・足の円は描画しません。
+- 円を表示するには `--show-pose` を指定してください。
+```
+uv run python -m game.main --show-pose
+```
+
 ### 日本語タイトル表示（任意）
 - 日本語表示には Pillow と日本語フォントが必要です。
 - 依存に `pillow` を追加済みなので、環境にインストールされます。
