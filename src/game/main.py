@@ -10,6 +10,7 @@ from .profiler import init_profiler, get_profiler
 
 from .camera import open_camera, list_available_cameras
 from .pose import PoseEstimator, Circle
+from . import colors as COLORS
 from .effects import EffectsManager
 from .pipeline import LatestFrame, LatestPose, CameraCaptureThread, PoseInferThread, duplicate_center
 from .gameplay import RockManager
@@ -310,10 +311,10 @@ def main() -> None:
             if not self.game_state.game_started:
                 # Gesture-based start: raise a hand above the head for 2 seconds
                 if self._title_texts is None:
-                    title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, (237, 212, 0), 48, anchor_x="center", font_name=self.arcade_font_name)
+                    title = arcade.Text("ポーズゲーム", WIDTH/2, HEIGHT*0.70, COLORS.OSD_TITLE, 48, anchor_x="center", font_name=self.arcade_font_name)
                     line1 = arcade.Text("あたまで　いわを　よけよう！", WIDTH/2, HEIGHT*0.55, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
                     line2 = arcade.Text("あしで　いわを　けって　スコアを　かせごう！", WIDTH/2, HEIGHT*0.48, (255,255,255), 24, anchor_x="center", font_name=self.arcade_font_name)
-                    hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, (115, 210, 22), 26, anchor_x="center", font_name=self.arcade_font_name)
+                    hint = arcade.Text("てを　あげると　スタート", WIDTH/2, HEIGHT*0.38, COLORS.OSD_HINT, 26, anchor_x="center", font_name=self.arcade_font_name)
                     self._title_texts = (title, line1, line2, hint)
                     # Title texts created (shader outlines are composited later)
                     
@@ -558,8 +559,8 @@ def main() -> None:
                 from .render import draw_circles_arcade_optimized
                 try:
                     with self.prof.section("draw_pose"):
-                        draw_circles_arcade_optimized(self.players[0], HEIGHT, color=(52, 101, 164), geometry_renderer=self.circle_geometry)
-                        draw_circles_arcade_optimized(self.players[1], HEIGHT, color=(204, 0, 0), geometry_renderer=self.circle_geometry)
+                        draw_circles_arcade_optimized(self.players[0], HEIGHT, color=COLORS.POSE_P1, geometry_renderer=self.circle_geometry)
+                        draw_circles_arcade_optimized(self.players[1], HEIGHT, color=COLORS.POSE_P2, geometry_renderer=self.circle_geometry)
                 except Exception:
                     pass
             # Draw rocks using SpriteList-based rendering
@@ -577,10 +578,10 @@ def main() -> None:
                     # Timer centered at top
                     self.timer_text = arcade.Text("0:00", WIDTH/2, HEIGHT - 46, arcade.color.WHITE, 36, anchor_x="center", font_name=self.arcade_font_name)
                     # P1 left
-                    self.p1_score_text = arcade.Text("スコア:　0", margin, HEIGHT - 70, (204, 0, 0), 28, font_name=self.arcade_font_name)
+                    self.p1_score_text = arcade.Text("スコア:　0", margin, HEIGHT - 70, COLORS.OSD_P1_SCORE, 28, font_name=self.arcade_font_name)
                     self.p1_lives_text = arcade.Text("ライフ:　5", margin, HEIGHT - 100, arcade.color.WHITE, 24, font_name=self.arcade_font_name)
                     # P2 right (right-aligned)
-                    self.p2_score_text = arcade.Text("スコア:　0", WIDTH - margin, HEIGHT - 70, (52, 101, 164), 28, anchor_x="right", font_name=self.arcade_font_name)
+                    self.p2_score_text = arcade.Text("スコア:　0", WIDTH - margin, HEIGHT - 70, COLORS.OSD_P2_SCORE, 28, anchor_x="right", font_name=self.arcade_font_name)
                     self.p2_lives_text = arcade.Text("ライフ:　5", WIDTH - margin, HEIGHT - 100, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
                     # FPS at top-left below timer
                     self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 38, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
@@ -604,10 +605,10 @@ def main() -> None:
                 self.p1_score_text.text = f"スコア:　{p1.score}"
                 self.p1_lives_text.text = "ゲームオーバー" if p1.is_game_over else f"ライフ:　{p1.lives}"
                 # Match OpenCV coloring: green normally, red when low lives (<=1), invulnerable, or game over
-                self.p1_lives_text.color = (204, 0, 0)
+                self.p1_lives_text.color = COLORS.OSD_P1_LIVES
                 self.p2_score_text.text = f"スコア:　{p2.score}"
                 self.p2_lives_text.text = "ゲームオーバー" if p2.is_game_over else f"ライフ:　{p2.lives}"
-                self.p2_lives_text.color = (52, 101, 164)
+                self.p2_lives_text.color = COLORS.OSD_P2_LIVES
                 # FPS
                 self.fps_text.text = f"FPS: {self.fps:.1f}"
                 # Draw all HUD texts
@@ -632,9 +633,9 @@ def main() -> None:
                                 left_msg = right_msg = "ひきわけ"
                             if not hasattr(self, 'game_over_texts'):
                                 self.game_over_texts = {
-                                    "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, (237, 212, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
-                                    "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, (237, 212, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
-                                    "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, (115, 210, 22), 26, anchor_x="center", font_name=self.arcade_font_name)
+                                    "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, COLORS.OSD_TITLE, 48, anchor_x="center", font_name=self.arcade_font_name),
+                                    "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, COLORS.OSD_TITLE, 48, anchor_x="center", font_name=self.arcade_font_name),
+                                    "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, COLORS.OSD_HINT, 26, anchor_x="center", font_name=self.arcade_font_name)
                                 }
                             self.game_over_texts["left"].text = left_msg
                             self.game_over_texts["right"].text = right_msg
@@ -680,9 +681,9 @@ def main() -> None:
                         left_msg = right_msg = "ひきわけ"
                     if not hasattr(self, 'game_over_texts'):
                         self.game_over_texts = {
-                            "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, (237, 212, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
-                            "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, (237, 212, 0), 48, anchor_x="center", font_name=self.arcade_font_name),
-                            "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, (115, 210, 22), 26, anchor_x="center", font_name=self.arcade_font_name)
+                            "left": arcade.Text("", WIDTH / 4, HEIGHT * 0.45, COLORS.OSD_TITLE, 48, anchor_x="center", font_name=self.arcade_font_name),
+                            "right": arcade.Text("", 3 * WIDTH / 4, HEIGHT * 0.45, COLORS.OSD_TITLE, 48, anchor_x="center", font_name=self.arcade_font_name),
+                            "restart": arcade.Text("てを　あげると　もういちど", WIDTH / 2, HEIGHT * 0.35, COLORS.OSD_HINT, 26, anchor_x="center", font_name=self.arcade_font_name)
                         }
                     self.game_over_texts["left"].text = left_msg
                     self.game_over_texts["right"].text = right_msg
