@@ -61,11 +61,11 @@ def find_default_jp_font() -> str | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--camera", type=int, help="Camera index to open (if provided, skip selector)")
+    parser.add_argument("-c", "--camera", type=int, help="Camera index to open")
     parser.add_argument("--tasks-model", type=str, default="models/pose_landmarker_lite.task", help="Optional path to MediaPipe Tasks pose landmarker model file for multi-person detection")
     parser.add_argument("-d", "--duplicate", action="store_true", help="Duplicate center region of camera frame to simulate two players (center clip and duplicate).")
     # If not provided, we try to auto-detect a Japanese-capable font per OS
-    parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese (for title screen text)")
+    parser.add_argument("--jp-font", type=str, default=None, help="Path to a TTF/TTC/OTF font that supports Japanese")
     parser.add_argument("--profile-csv", type=str, default=None, help="Write per-frame timings to CSV (enables profiler)")
     parser.add_argument("--max-seconds", type=float, default=None, help="Exit automatically after N seconds (for profiling)")
     parser.add_argument("--infer-size", type=int, default=None, help="Resize shorter side for pose inference (keep aspect). Results rescaled back.")
