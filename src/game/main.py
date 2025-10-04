@@ -259,7 +259,7 @@ def main() -> None:
             self._cam_fail = 0
             self.prof = get_profiler()
             # Pre-allocate Text objects to avoid per-frame draw_text cost
-            self.fps_text = arcade.Text("FPS: 0.0", 12, HEIGHT - 38, arcade.color.WHITE, 14, font_name=self.arcade_font_name)
+            self.fps_text = arcade.Text("FPS：0.0", 12, HEIGHT - 38, arcade.color.WHITE, 14, font_name=self.arcade_font_name)
             # Event messages are disabled (FX and sounds only)
             # Title screen texts (lazy initialized)
             self._title_texts = None
@@ -587,7 +587,7 @@ def main() -> None:
                     self.p2_score_text = arcade.Text("スコア:　0", WIDTH - margin, HEIGHT - 70, COLORS.OSD_P2_SCORE, 28, anchor_x="right", font_name=self.arcade_font_name)
                     self.p2_lives_text = arcade.Text("ライフ:　5", WIDTH - margin, HEIGHT - 100, arcade.color.WHITE, 24, anchor_x="right", font_name=self.arcade_font_name)
                     # FPS at top-left below timer
-                    self.fps_text = arcade.Text("FPS: 0.0", margin, HEIGHT - 38, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
+                    self.fps_text = arcade.Text("FPS：0.0", margin, HEIGHT - 38, arcade.color.WHITE, 28, font_name=self.arcade_font_name)
                     self.hud_texts = [
                         self.timer_text,
                         self.p1_score_text, self.p1_lives_text,
@@ -634,7 +634,7 @@ def main() -> None:
                 self.p2_lives_text.color = (COLORS.OSD_HIGHLIGHT if _now < self._hl_until["p2_lives"] else COLORS.OSD_P2_LIVES)
 
                 # FPS
-                self.fps_text.text = f"FPS: {self.fps:.1f}"
+                self.fps_text.text = f"FPS：{self.fps:.1f}"
                 # Draw all HUD texts
             # Draw transient event messages (similar to OpenCV OSD)
             now_t = time.time()
