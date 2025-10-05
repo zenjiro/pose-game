@@ -599,7 +599,9 @@ def main() -> None:
             # Composite hand glow after rocks and before HUD (ensure blending on)
             try:
                 if getattr(self, 'hand_glow_enabled', False) and self.hand_glow is not None:
-                    self.hand_glow.draw()
+                    # Only draw if GL path is initialized and healthy
+                    if getattr(self.hand_glow, 'fbo_ok', False):
+                        self.hand_glow.draw()
             except Exception as e:
                 if not hasattr(self, '_hand_glow_draw_warned'):
                     print(f"[WARN] HandGlow draw failed: {e}")

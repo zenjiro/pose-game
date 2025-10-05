@@ -200,6 +200,10 @@ class HandGlowManager:
                 except Exception:
                     pass
             # Bind program and uniforms
+            try:
+                self.blur_prog.use()
+            except Exception:
+                pass
             self.blur_prog['u_tex'] = 0
             self.blur_prog['u_texel'] = (1.0 / src_tex.width, 1.0 / src_tex.height)
             self.blur_prog['u_dir'] = dir_
@@ -216,17 +220,9 @@ class HandGlowManager:
             except Exception:
                 pass
 
+    # Removed fallback halo rendering (no unblurred circles)
     def _draw_core_halos(self) -> None:
-        # Draw a soft halo at each hand center to guarantee visibility
-        for hand_id in self.hands.keys():
-            cx, cy = self.hand_centers.get(hand_id, (0.0, 0.0))
-            bgr = self.hand_colors.get(hand_id, (255,255,255))
-            rgb = (int(bgr[2]), int(bgr[1]), int(bgr[0]))
-            y = self.height - cy
-            # Three-layer halo
-            arcade.draw_circle_filled(cx, y, 36, (*rgb, 56))
-            arcade.draw_circle_filled(cx, y, 22, (*rgb, 92))
-            arcade.draw_circle_filled(cx, y, 12, (*rgb, 140))
+        return
 
     def draw(self) -> None:
         """Render hand glow over the default framebuffer."""
@@ -280,22 +276,9 @@ class HandGlowManager:
                         pass
             except Exception:
                 pass
-            # Also draw a core halo to ensure visibility on all hardware
-            self._draw_core_halos()
         else:
-            # Fallback: draw particles directly without blur to ensure visibility
-            try:
-                self.ctx.screen.use()
-            except Exception:
-                pass
-            # Enable blending for alpha compositing
-            try:
-                self.ctx.enable(self.ctx.BLEND)
-                self.ctx.blend_func = (self.ctx.SRC_ALPHA, self.ctx.ONE_MINUS_SRC_ALPHA)
-            except Exception:
-                pass
-            self._draw_particles_to_current_fb()
-            self._draw_core_halos()
+            # No fallback rendering: if GL blur path is unavailable, do nothing
+            return
 
         # Restore GL state
         try:
