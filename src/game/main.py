@@ -467,13 +467,12 @@ def main() -> None:
                     for pid in range(2):
                         hands = [(c.x, c.y) for c in self.players[pid].get('hands', [])]
                         players_hands.append(hands)
-                    self.hand_glow.update_hands(players_hands, max(0.0, min(dt, 0.05)))
-                    # Feet
+                    # Update both hands and feet in one call (to avoid cleaning the other group)
                     players_feet: list[list[tuple[float,float]]] = []
                     for pid in range(2):
                         feet = [(c.x, c.y) for c in self.players[pid].get('feet', [])]
                         players_feet.append(feet)
-                    self.hand_glow.update_feet(players_feet, max(0.0, min(dt, 0.05)))
+                    self.hand_glow.update_all(players_hands, players_feet, max(0.0, min(dt, 0.05)))
             except Exception as e:
                 # Non-fatal
                 if not hasattr(self, '_hand_glow_update_warned'):

@@ -123,20 +123,29 @@ class HandGlowManager:
             del hp[self.particles_per_hand:]
 
     def update_hands(self, players_hands: List[List[Tuple[float, float]]], dt: float) -> None:
-        """players_hands: list for each player -> list of (x,y) for up to two hands.
-        Maintains particles per hand and updates simulation.
-        """
-        self._update_group(players_hands, prefix='h', dt=dt)
+        """Deprecated: use update_all. Left for compatibility (no cleanup across groups)."""
+        self.update_all(players_hands, players_feet=[[], []], dt=dt)
 
     def update_feet(self, players_feet: List[List[Tuple[float, float]]], dt: float) -> None:
-        """players_feet: list for each player -> list of (x,y) for up to two feet.
-        Maintains particles per foot and updates simulation.
-        """
-        self._update_group(players_feet, prefix='f', dt=dt)
+        """Deprecated: use update_all. Left for compatibility (no cleanup across groups)."""
+        self.update_all(players_hands=[[], []], players_feet=players_feet, dt=dt)
 
-    def _update_group(self, players_points: List[List[Tuple[float, float]]], prefix: str, dt: float) -> None:
-        # Build current ids and centers
+    def update_all(self, players_hands: List[List[Tuple[float, float]]], players_feet: List[List[Tuple[float, float]]], dt: float) -> None:
         current_ids = set()
+        # Update hands
+        self._update_group_collect(players_hands, prefix='h', dt=dt, current_ids=current_ids)
+        # Update feet
+        self._update_group_collect(players_feet, prefix='f', dt=dt, current_ids=current_ids)
+        # Prune stale groups
+        stale = [gid for gid in list(self.hands.keys()) if gid not in current_ids]
+        for gid in stale:
+            del self.hands[gid]
+            if gid in self.hand_centers:
+                del self.hand_centers[gid]
+            if gid in self.hand_colors:
+                del self.hand_colors[gid]
+
+    def _update_group_collect(self, players_points: List[List[Tuple[float, float]]], prefix: str, dt: float, current_ids: set) -> None:
         for pid, points in enumerate(players_points):
             # Sort by x to get stable left/right ordering
             points_sorted = sorted(points, key=lambda t: t[0])[:2]
@@ -156,14 +165,6 @@ class HandGlowManager:
                 # Top up in case list shrank (shouldn't happen, but be safe)
                 while len(plist) < self.particles_per_hand:
                     plist.append(self._spawn_particle(color_bgr))
-        # Remove groups that are no longer present
-        stale = [gid for gid in list(self.hands.keys()) if gid not in current_ids]
-        for gid in stale:
-            del self.hands[gid]
-            if gid in self.hand_centers:
-                del self.hand_centers[gid]
-            if gid in self.hand_colors:
-                del self.hand_colors[gid]
 
     def _draw_particles_to_fbo(self, fbo) -> None:
         # Activate FBO and draw as filled circles with additive color (alpha via size-based intensity)
