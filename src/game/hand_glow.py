@@ -46,7 +46,7 @@ class HandGlowManager:
         self.width = width
         self.height = height
         self.particles_per_hand = max(1, int(particles_per_hand))
-        # hand_id -> particles
+        # group_id (hand/foot) -> particles
         self.hands: Dict[str, List[HandParticle]] = {}
         self.hand_centers: Dict[str, Tuple[float, float]] = {}
         self.hand_colors: Dict[str, Tuple[int, int, int]] = {}
@@ -126,19 +126,28 @@ class HandGlowManager:
         """players_hands: list for each player -> list of (x,y) for up to two hands.
         Maintains particles per hand and updates simulation.
         """
+        self._update_group(players_hands, prefix='h', dt=dt)
+
+    def update_feet(self, players_feet: List[List[Tuple[float, float]]], dt: float) -> None:
+        """players_feet: list for each player -> list of (x,y) for up to two feet.
+        Maintains particles per foot and updates simulation.
+        """
+        self._update_group(players_feet, prefix='f', dt=dt)
+
+    def _update_group(self, players_points: List[List[Tuple[float, float]]], prefix: str, dt: float) -> None:
         # Build current ids and centers
         current_ids = set()
-        for pid, hands in enumerate(players_hands):
-            # Sort hands by x to get stable left/right ordering
-            hands_sorted = sorted(hands, key=lambda t: t[0])[:2]
-            for hid, (hx, hy) in enumerate(hands_sorted):
-                hand_id = f"p{pid}_h{hid}"
+        for pid, points in enumerate(players_points):
+            # Sort by x to get stable left/right ordering
+            points_sorted = sorted(points, key=lambda t: t[0])[:2]
+            for idx, (hx, hy) in enumerate(points_sorted):
+                gid = f"p{pid}_{prefix}{idx}"
                 color_bgr = (0,0,255) if pid == 0 else (255,0,0)  # P1 red, P2 blue (BGR)
-                current_ids.add(hand_id)
-                self._ensure_hand(hand_id, color_bgr)
-                self.hand_centers[hand_id] = (float(hx), float(hy))
+                current_ids.add(gid)
+                self._ensure_hand(gid, color_bgr)
+                self.hand_centers[gid] = (float(hx), float(hy))
                 # Update particles
-                plist = self.hands[hand_id]
+                plist = self.hands[gid]
                 for i, p in enumerate(plist):
                     p.update(dt)
                     if not p.alive():
@@ -147,14 +156,14 @@ class HandGlowManager:
                 # Top up in case list shrank (shouldn't happen, but be safe)
                 while len(plist) < self.particles_per_hand:
                     plist.append(self._spawn_particle(color_bgr))
-        # Remove hands that are no longer present
-        stale = [hid for hid in list(self.hands.keys()) if hid not in current_ids]
-        for hid in stale:
-            del self.hands[hid]
-            if hid in self.hand_centers:
-                del self.hand_centers[hid]
-            if hid in self.hand_colors:
-                del self.hand_colors[hid]
+        # Remove groups that are no longer present
+        stale = [gid for gid in list(self.hands.keys()) if gid not in current_ids]
+        for gid in stale:
+            del self.hands[gid]
+            if gid in self.hand_centers:
+                del self.hand_centers[gid]
+            if gid in self.hand_colors:
+                del self.hand_colors[gid]
 
     def _draw_particles_to_fbo(self, fbo) -> None:
         # Activate FBO and draw as filled circles with additive color (alpha via size-based intensity)
