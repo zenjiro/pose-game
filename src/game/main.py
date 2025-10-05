@@ -12,6 +12,7 @@ from .camera import open_camera, list_available_cameras
 from .pose import PoseEstimator, Circle
 from . import colors as COLORS
 from .effects import EffectsManager
+from .hand_glow import HandGlowManager
 from .pipeline import LatestFrame, LatestPose, CameraCaptureThread, PoseInferThread, duplicate_center
 from .gameplay import RockManager
 from .player import GameState
@@ -273,6 +274,14 @@ def main() -> None:
             from .render import RockSpriteList, CircleGeometry
             self.rock_sprite_list = RockSpriteList(HEIGHT)
             self.circle_geometry = CircleGeometry()
+            # Always-on hand glow (64 particles per hand, P1 red / P2 blue)
+            try:
+                self.hand_glow = HandGlowManager(self.ctx, WIDTH, HEIGHT, particles_per_hand=64)
+                self.hand_glow_enabled = True
+            except Exception as e:
+                print(f"[WARN] HandGlow init failed: {e}")
+                self.hand_glow = None
+                self.hand_glow_enabled = False
 
         def on_update(self, dt: float):
             nonlocal gesture_hold_start
@@ -450,6 +459,20 @@ def main() -> None:
             # Update managers
             self.rock_mgr.update(max(0.0, min(dt, 0.05)))
             self.effects.update(max(0.0, min(dt, 0.05)))
+            # Update hand glow particle simulation with current hand positions (no gravity)
+            try:
+                if getattr(self, 'hand_glow_enabled', False) and self.hand_glow is not None:
+                    # Build players_hands: [[(x,y), (x,y)], [(x,y), (x,y)]]
+                    players_hands: list[list[tuple[float,float]]] = []
+                    for pid in range(2):
+                        hands = [(c.x, c.y) for c in self.players[pid].get('hands', [])]
+                        players_hands.append(hands)
+                    self.hand_glow.update_hands(players_hands, max(0.0, min(dt, 0.05)))
+            except Exception as e:
+                # Non-fatal
+                if not hasattr(self, '_hand_glow_update_warned'):
+                    print(f"[WARN] HandGlow update failed: {e}")
+                    self._hand_glow_update_warned = True
 
             self.last_frame_bgr = frame_bgr
 
@@ -573,6 +596,14 @@ def main() -> None:
                 self.rock_sprite_list.draw()
             with self.prof.section("draw_fx"):
                 self.effects.draw(HEIGHT, fps=self.fps)
+            # Composite hand glow after rocks and before HUD (ensure blending on)
+            try:
+                if getattr(self, 'hand_glow_enabled', False) and self.hand_glow is not None:
+                    self.hand_glow.draw()
+            except Exception as e:
+                if not hasattr(self, '_hand_glow_draw_warned'):
+                    print(f"[WARN] HandGlow draw failed: {e}")
+                    self._hand_glow_draw_warned = True
             # Draw HUD using persistent Text objects (avoid per-frame allocations)
             with self.prof.section("draw_osd"):
                 # Ensure Text objects are created once
